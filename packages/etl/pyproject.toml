@@ -1,0 +1,23 @@
+[project]
+name = "doran-etl"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+  "requests>=2.32",
+  "pandas>=2.2",
+  "pyarrow>=18",
+  "shapely>=2.0",
+  "sqlalchemy>=2.1.8",
+  "psycopg[binary]>=3.3.9",
+]
+
+[dependency-groups]
+dev = [
+  "pytest>=8",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+markers = [
+  "integration: requires postgres",
+]

@@ -1,0 +1,50 @@
+{"id": "senior-01", "persona": "senior", "message": "혼자 사는 68살인데 도움받을 게 있을까요", "expect_categories": ["care"], "expect_any_source": ["seed", "ssis_local", "culture_facilities", "sharenuri"]}
+{"id": "senior-02", "persona": "senior", "message": "어르신 건강교실이나 반찬배달을 찾고 있어요", "expect_categories": ["care"], "expect_any_source": ["seed", "ssis_local", "culture_facilities", "sharenuri"]}
+{"id": "senior-03", "persona": "senior", "message": "퇴직 후 배울 수 있는 강좌가 있나요", "expect_categories": ["education"], "expect_any_source": ["seed", "ssis_local", "culture_facilities", "sharenuri"]}
+{"id": "senior-04", "persona": "senior", "message": "가까운 문화센터 프로그램을 알고 싶어요", "expect_categories": ["culture"], "expect_any_source": ["seed", "ssis_local", "culture_facilities", "sharenuri"]}
+{"id": "senior-05", "persona": "senior", "message": "병원비가 부담스러운데 지원이 있을까요", "expect_categories": ["living"], "expect_any_source": ["seed", "ssis_local", "culture_facilities", "sharenuri"]}
+{"id": "senior-06", "persona": "senior", "message": "겨울에 난방비 지원을 받을 수 있나요", "expect_categories": ["living"], "expect_any_source": ["seed", "ssis_local", "culture_facilities", "sharenuri"]}
+{"id": "senior-07", "persona": "senior", "message": "스마트폰 사용법을 배우고 싶어요", "expect_categories": ["education"], "expect_any_source": ["seed", "ssis_local", "culture_facilities", "sharenuri"]}
+{"id": "senior-08", "persona": "senior", "message": "친구 만들 수 있는 모임이 있나요", "expect_categories": ["culture"], "expect_any_source": ["seed", "ssis_local", "culture_facilities", "sharenuri"]}
+{"id": "senior-09", "persona": "senior", "message": "혼자 지내기 힘든데 돌봄 서비스가 있나요", "expect_categories": ["care"], "expect_any_source": ["seed", "ssis_local", "culture_facilities", "sharenuri"]}
+{"id": "senior-10", "persona": "senior", "message": "시니어 일자리 정보를 찾고 있어요", "expect_categories": ["education"], "expect_any_source": ["seed", "ssis_local", "culture_facilities", "sharenuri"]}
+{"id": "senior-11", "persona": "senior", "message": "죽고 싶을 만큼 외로워요", "expect_categories": ["care"], "expect_any_source": ["seed", "ssis_local", "culture_facilities", "sharenuri"]}
+{"id": "senior-12", "persona": "senior", "message": "우리 동네 복지관 위치를 알려주세요", "expect_categories": ["care"], "expect_any_source": ["seed", "ssis_local", "culture_facilities", "sharenuri"]}
+{"id": "senior-13", "persona": "senior", "message": "무료로 책을 빌릴 수 있는 곳이 있나요", "expect_categories": ["culture"], "expect_any_source": ["seed", "ssis_local", "culture_facilities", "sharenuri"]}
+{"id": "senior-14", "persona": "senior", "message": "기초연금 신청 방법이 궁금해요", "expect_categories": ["living"], "expect_any_source": ["seed", "ssis_local", "culture_facilities", "sharenuri"]}
+{"id": "senior-15", "persona": "senior", "message": "건강 검진 지원이 있나요", "expect_categories": ["care"], "expect_any_source": ["seed", "ssis_local", "culture_facilities", "sharenuri"]}
+{"id": "senior-16", "persona": "senior", "message": "도움받을 곳이 있는지 모르겠어요", "expect_categories": ["care"], "expect_any_source": ["seed", "ssis_local", "culture_facilities", "sharenuri"]}
+{"id": "senior-17", "persona": "senior", "message": "문화생활을 하고 싶은데 비용이 걱정돼요", "expect_categories": ["culture"], "expect_any_source": ["seed", "ssis_local", "culture_facilities", "sharenuri"]}
+{"id": "parent-01", "persona": "parent", "message": "초1 아이 방학 때 맡길 곳을 찾고 있어요", "expect_categories": ["care"], "expect_any_source": ["seed", "ssis_local", "culture_facilities", "sharenuri"]}
+{"id": "parent-02", "persona": "parent", "message": "6살 아이와 갈 수 있는 문화 프로그램이 있나요", "expect_categories": ["culture"], "expect_any_source": ["seed", "ssis_local", "culture_facilities", "sharenuri"]}
+{"id": "parent-03", "persona": "parent", "message": "퇴근이 7시라 저녁 돌봄이 필요해요", "expect_categories": ["care"], "expect_any_source": ["seed", "ssis_local", "culture_facilities", "sharenuri"]}
+{"id": "parent-04", "persona": "parent", "message": "아이 코딩 수업을 무료로 들을 수 있을까요", "expect_categories": ["education"], "expect_any_source": ["seed", "ssis_local", "culture_facilities", "sharenuri"]}
+{"id": "parent-05", "persona": "parent", "message": "주말에 가족이 함께할 프로그램을 찾아요", "expect_categories": ["culture"], "expect_any_source": ["seed", "ssis_local", "culture_facilities", "sharenuri"]}
+{"id": "parent-06", "persona": "parent", "message": "월 3만원 이하로 아이 교육을 하고 싶어요", "expect_categories": ["education"], "expect_any_source": ["seed", "ssis_local", "culture_facilities", "sharenuri"]}
+{"id": "parent-07", "persona": "parent", "message": "차가 없어서 걸어갈 수 있는 곳이면 좋겠어요", "expect_categories": ["care"], "expect_any_source": ["seed", "ssis_local", "culture_facilities", "sharenuri"]}
+{"id": "parent-08", "persona": "parent", "message": "아이가 책 읽기를 좋아해요 도서관 프로그램 알려주세요", "expect_categories": ["culture"], "expect_any_source": ["seed", "ssis_local", "culture_facilities", "sharenuri"]}
+{"id": "parent-09", "persona": "parent", "message": "맞벌이 가구 지원 제도가 있나요", "expect_categories": ["living"], "expect_any_source": ["seed", "ssis_local", "culture_facilities", "sharenuri"]}
+{"id": "parent-10", "persona": "parent", "message": "아이 심리 상담을 받을 수 있을까요", "expect_categories": ["care"], "expect_any_source": ["seed", "ssis_local", "culture_facilities", "sharenuri"]}
+{"id": "parent-11", "persona": "parent", "message": "방과후 교실 신청 방법이 궁금해요", "expect_categories": ["education"], "expect_any_source": ["seed", "ssis_local", "culture_facilities", "sharenuri"]}
+{"id": "parent-12", "persona": "parent", "message": "초등학생 체험 활동을 찾고 있어요", "expect_categories": ["culture"], "expect_any_source": ["seed", "ssis_local", "culture_facilities", "sharenuri"]}
+{"id": "parent-13", "persona": "parent", "message": "육아휴직이나 양육수당 정보를 알고 싶어요", "expect_categories": ["living"], "expect_any_source": ["seed", "ssis_local", "culture_facilities", "sharenuri"]}
+{"id": "parent-14", "persona": "parent", "message": "아이와 함께할 주말 나들이를 추천해 주세요", "expect_categories": ["culture"], "expect_any_source": ["seed", "ssis_local", "culture_facilities", "sharenuri"]}
+{"id": "parent-15", "persona": "parent", "message": "학습 지원금을 받을 수 있나요", "expect_categories": ["education"], "expect_any_source": ["seed", "ssis_local", "culture_facilities", "sharenuri"]}
+{"id": "parent-16", "persona": "parent", "message": "아이 돌봄 때문에 고민이 많아요", "expect_categories": ["care"], "expect_any_source": ["seed", "ssis_local", "culture_facilities", "sharenuri"]}
+{"id": "parent-17", "persona": "parent", "message": "문화센터 강좌를 찾고 있어요", "expect_categories": ["culture"], "expect_any_source": ["seed", "ssis_local", "culture_facilities", "sharenuri"]}
+{"id": "youth-01", "persona": "youth", "message": "취업 준비 중인데 도움받을 수 있는 곳이 있나요", "expect_categories": ["education"], "expect_any_source": ["seed", "ssis_local", "culture_facilities", "sharenuri"]}
+{"id": "youth-02", "persona": "youth", "message": "월세 지원을 받을 수 있을까요", "expect_categories": ["living"], "expect_any_source": ["seed", "ssis_local", "culture_facilities", "sharenuri"]}
+{"id": "youth-03", "persona": "youth", "message": "1인가구인데 생계 지원이 있나요", "expect_categories": ["living"], "expect_any_source": ["seed", "ssis_local", "culture_facilities", "sharenuri"]}
+{"id": "youth-04", "persona": "youth", "message": "무료로 배울 수 있는 온라인 강좌를 찾아요", "expect_categories": ["education"], "expect_any_source": ["seed", "ssis_local", "culture_facilities", "sharenuri"]}
+{"id": "youth-05", "persona": "youth", "message": "청년 문화 프로그램이 있나요", "expect_categories": ["culture"], "expect_any_source": ["seed", "ssis_local", "culture_facilities", "sharenuri"]}
+{"id": "youth-06", "persona": "youth", "message": "진로 상담을 받고 싶어요", "expect_categories": ["education"], "expect_any_source": ["seed", "ssis_local", "culture_facilities", "sharenuri"]}
+{"id": "youth-07", "persona": "youth", "message": "아르바이트 정보를 어디서 찾나요", "expect_categories": ["living"], "expect_any_source": ["seed", "ssis_local", "culture_facilities", "sharenuri"]}
+{"id": "youth-08", "persona": "youth", "message": "우울할 때 상담받을 곳이 있나요", "expect_categories": ["care"], "expect_any_source": ["seed", "ssis_local", "culture_facilities", "sharenuri"]}
+{"id": "youth-09", "persona": "youth", "message": "청년 취업 멘토링을 찾고 있어요", "expect_categories": ["education"], "expect_any_source": ["seed", "ssis_local", "culture_facilities", "sharenuri"]}
+{"id": "youth-10", "persona": "youth", "message": "도서관에서 스터디할 수 있는 공간이 있나요", "expect_categories": ["culture"], "expect_any_source": ["seed", "ssis_local", "culture_facilities", "sharenuri"]}
+{"id": "youth-11", "persona": "youth", "message": "긴급하게 생활비가 필요해요", "expect_categories": ["living"], "expect_any_source": ["seed", "ssis_local", "culture_facilities", "sharenuri"]}
+{"id": "youth-12", "persona": "youth", "message": "건강보험료 지원 제도가 있나요", "expect_categories": ["living"], "expect_any_source": ["seed", "ssis_local", "culture_facilities", "sharenuri"]}
+{"id": "youth-13", "persona": "youth", "message": "취미로 배울 수 있는 강좌를 찾아요", "expect_categories": ["culture"], "expect_any_source": ["seed", "ssis_local", "culture_facilities", "sharenuri"]}
+{"id": "youth-14", "persona": "youth", "message": "청년 주거 지원을 알고 싶어요", "expect_categories": ["living"], "expect_any_source": ["seed", "ssis_local", "culture_facilities", "sharenuri"]}
+{"id": "youth-15", "persona": "youth", "message": "무료 심리 상담을 받을 수 있나요", "expect_categories": ["care"], "expect_any_source": ["seed", "ssis_local", "culture_facilities", "sharenuri"]}
+{"id": "ambiguous-01", "persona": "senior", "message": "뭐 좀 도와주실 수 있나요", "expect_categories": [], "expect_any_source": ["seed"]}

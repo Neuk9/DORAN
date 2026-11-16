@@ -1,0 +1,15 @@
+.venv/
+node_modules/
+.next/
+__pycache__/
+*.pyc
+.env
+data/snapshots/
+.superpowers/
+test-results/
+playwright-report/
+docs/
+eval/report.json
+*.log
+README*
+*.tsbuildinfo
