@@ -91,7 +91,19 @@ make lint
 
 버그 수정은 **실패하는 테스트를 먼저** 작성합니다.
 
-## 8. 릴리스
+## 8. 사전 커밋 훅
+
+```bash
+uv tool install pre-commit
+make hooks
+```
+
+훅은 ruff(API·ETL), prettier(웹), tsc(웹)를 실행합니다.
+
+> 저장소가 private + GitHub Free 플랜이면 서버 측 브랜치 보호가 동작하지 않습니다.
+> Pro 업그레이드 또는 public 전환 시 `main` 보호(PR 1인 승인, CI 필수)를 적용합니다.
+
+## 9. 릴리스
 
 - `main` merge 시 CI 통과 필수
 - 데모 시드는 `bash scripts/seed_demo.sh`
