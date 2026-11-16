@@ -43,6 +43,8 @@ jobs:
         working-directory: apps/api
       - run: uv run alembic upgrade head
         working-directory: apps/api
+      - run: uv run python scripts/seed_dev.py
+        working-directory: apps/api
       - run: uv run pytest -q
         working-directory: apps/api
 
