@@ -33,7 +33,7 @@ jobs:
     env:
       DATABASE_URL: postgresql+psycopg://bigdata:bigdata@localhost:5433/bigdata
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v5
         with:
           version: "latest"
@@ -65,7 +65,7 @@ jobs:
     env:
       DATABASE_URL: postgresql+psycopg://bigdata:bigdata@localhost:5433/bigdata
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v5
         with:
           version: "latest"
@@ -83,7 +83,7 @@ jobs:
   web:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v4
         with:
           version: 11

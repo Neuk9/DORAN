@@ -34,7 +34,7 @@ jobs:
       DATABASE_URL: postgresql+psycopg://bigdata:bigdata@localhost:5433/bigdata
       LLM_PROVIDER: mock
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v5
         with:
           version: "latest"
