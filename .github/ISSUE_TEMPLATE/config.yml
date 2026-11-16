@@ -1,5 +1,5 @@
 blank_issues_enabled: false
 contact_links:
-  - name: 보안 이슈
-    url: https://github.com/Neuk9/DORAN/security/advisories/new
-    about: 공개 이슈 대신 비공개로 제보해 주세요.
+  - name: 보안 이슈 안내
+    url: https://github.com/Neuk9/DORAN/blob/main/SECURITY.md
+    about: 취약점은 공개 이슈 대신 SECURITY.md의 비공개 절차를 따라 주세요.
