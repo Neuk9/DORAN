@@ -102,8 +102,8 @@ make hooks
 
 훅은 ruff(API·ETL), prettier(웹), tsc(웹)를 실행합니다.
 
-> 저장소가 private + GitHub Free 플랜이면 서버 측 브랜치 보호가 동작하지 않습니다.
-> Pro 업그레이드 또는 public 전환 시 `main` 보호(PR 1인 승인, CI 필수)를 적용합니다.
+`main`은 보호됩니다: PR 필수, 리뷰 1명, CI(api/etl/web) 통과, 선형 히스토리, force push 금지.
+보안 취약점은 [SECURITY.md](SECURITY.md)의 비공개 제보 절차를 따릅니다.
 
 ## 9. 릴리스
 

@@ -1,5 +1,8 @@
 # 도란도란
 
+[![CI](https://github.com/Neuk9/DORAN/actions/workflows/ci.yml/badge.svg)](https://github.com/Neuk9/DORAN/actions/workflows/ci.yml)
+[![E2E](https://github.com/Neuk9/DORAN/actions/workflows/e2e.yml/badge.svg)](https://github.com/Neuk9/DORAN/actions/workflows/e2e.yml)
+
 > AI 기반 지역사회 사각지대 발굴 및 공공자원 최적 활용 플랫폼
 
 주민이 자연어로 상황을 말하면 AI가 복지·교육·문화 공공자원을 **자격·거리·시간·비용** 기준으로 매칭하고,

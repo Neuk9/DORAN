@@ -12,13 +12,11 @@
 
 **공개 이슈에 취약점을 올리지 마세요.**
 
-현재 저장소는 **private + GitHub Free** 플랜이라 GitHub의 Private vulnerability reporting
-(`/security/advisories/new`)이 비활성화되어 있습니다. 따라서 아래 방법을 사용합니다.
+GitHub Security 탭의 **Report a vulnerability**로 비공개 제보할 수 있습니다.
 
-1. 저장소 관리자에게 팀 내 비공개 채널(메신저·이메일)로 연락합니다.
-2. 재현 절차, 영향 범위, 예상 심각도를 함께 전달합니다.
-3. GitHub Pro로 업그레이드하거나 저장소를 public으로 전환하면
-   Security 탭의 **Report a vulnerability**를 사용할 수 있습니다.
+- https://github.com/Neuk9/DORAN/security/advisories/new
+- 재현 절차, 영향 범위, 예상 심각도를 함께 전달해 주세요.
+- GitHub 계정이 필요합니다.
 
 ## 처리 절차
 
