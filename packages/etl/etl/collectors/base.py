@@ -21,8 +21,6 @@ def unwrap_items(payload):
             node = node[key]
     if isinstance(node, list):
         return node
-    if isinstance(node, dict) and all(
-        not isinstance(v, (dict, list)) for v in node.values()
-    ):
+    if isinstance(node, dict) and all(not isinstance(v, (dict, list)) for v in node.values()):
         return [node]
     return []

@@ -1,6 +1,7 @@
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from statistics import median
-from typing import Any, Iterable, Mapping
+from typing import Any
 
 WEIGHTS: dict[str, float] = {
     "senior_single_ratio": 0.25,
@@ -48,7 +49,7 @@ def _zscore(values: dict[str, float]) -> dict[str, float]:
         return {k: 0.0 for k in values}
     mean = sum(values.values()) / len(values)
     var = sum((v - mean) ** 2 for v in values.values()) / len(values)
-    std = var ** 0.5
+    std = var**0.5
     if std < 1e-9:
         return {k: 0.0 for k in values}
     return {k: (v - mean) / std for k, v in values.items()}

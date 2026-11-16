@@ -6,10 +6,12 @@ def test_weights_sum_to_one():
 
 
 def test_missing_indicator_renormalizes():
-    d = compute_demand([
-        {"adm_cd": "A", "indicator_code": "senior_single_ratio", "value": 20.0},
-        {"adm_cd": "B", "indicator_code": "senior_single_ratio", "value": 10.0},
-    ])
+    d = compute_demand(
+        [
+            {"adm_cd": "A", "indicator_code": "senior_single_ratio", "value": 20.0},
+            {"adm_cd": "B", "indicator_code": "senior_single_ratio", "value": 10.0},
+        ]
+    )
     assert 0 <= d["A"] <= 100 and 0 <= d["B"] <= 100
 
 

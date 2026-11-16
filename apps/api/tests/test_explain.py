@@ -14,8 +14,7 @@ def test_forbidden_patterns_are_declared():
 
 
 def test_phone_and_address_are_rendered_from_db():
-    assert render_contact("02-123-4567", "서울 ...") == {
-        "phone": "02-123-4567", "address": "서울 ..."}
+    assert render_contact("02-123-4567", "서울 ...") == {"phone": "02-123-4567", "address": "서울 ..."}
 
 
 def test_gap_narrative_uses_only_computed_values():

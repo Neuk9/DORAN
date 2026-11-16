@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 
-from app.schemas import Candidate, ResourceView, ScoredCandidate
+from app.schemas import ResourceView, ScoredCandidate
 from app.services.llm.base import LLMProvider
 
 FORBIDDEN_PATTERNS = ["받을 수 있습니다", "보장됩니다", "100%"]
@@ -41,11 +41,13 @@ async def explain(
     reasons = " · ".join(candidate.reasons) or "조건과 일치하는 항목이 있습니다"
     text = f"{resource.name}은(는) {reasons}."
     result = sanitize_explanation(text)
-    result.citations = [SourceCitation(
-        source_dataset=resource.source_dataset,
-        source_url=resource.source_url,
-        captured_at=resource.captured_at.isoformat() if resource.captured_at else None,
-    )]
+    result.citations = [
+        SourceCitation(
+            source_dataset=resource.source_dataset,
+            source_url=resource.source_url,
+            captured_at=resource.captured_at.isoformat() if resource.captured_at else None,
+        )
+    ]
     return result
 
 

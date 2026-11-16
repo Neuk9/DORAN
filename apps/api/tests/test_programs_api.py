@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date
 from zoneinfo import ZoneInfo
 
 from fastapi.testclient import TestClient

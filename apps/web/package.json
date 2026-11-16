@@ -6,7 +6,11 @@
     "dev": "next dev -p 3000",
     "build": "next build",
     "start": "next start -p 3000",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write \"app/**/*.{ts,tsx,css}\" \"components/**/*.{ts,tsx}\" \"lib/**/*.ts\" \"e2e/**/*.ts\"",
+    "format:check": "prettier --check \"app/**/*.{ts,tsx,css}\" \"components/**/*.{ts,tsx}\" \"lib/**/*.ts\" \"e2e/**/*.ts\""
   },
   "dependencies": {
     "leaflet": "^1.9.4",
@@ -19,6 +23,9 @@
     "@types/leaflet": "^1.9.22",
     "@types/node": "^22.10.0",
     "@types/react": "^19.0.0",
-    "typescript": "^5.7.0"
+    "eslint": "^10.15.0",
+    "prettier": "^3.10.1",
+    "typescript": "^5.7.0",
+    "typescript-eslint": "^8.72.2"
   }
 }

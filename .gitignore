@@ -11,5 +11,4 @@ playwright-report/
 docs/
 eval/report.json
 *.log
-README*
 *.tsbuildinfo

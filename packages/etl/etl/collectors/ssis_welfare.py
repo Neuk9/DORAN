@@ -44,7 +44,7 @@ def stable_source_id(name: str, region: str, url: str | None) -> str:
         tail = url.rstrip("/").split("/")[-1]
         if tail:
             return tail
-    return hashlib.sha1(f"{name}|{region}".encode("utf-8")).hexdigest()[:12]
+    return hashlib.sha1(f"{name}|{region}".encode()).hexdigest()[:12]
 
 
 class _SsisWelfareBase:

@@ -27,18 +27,20 @@ class CultureFacilityCollector(Collector):
             name = (row.get("fcltNm") or "").strip()
             if not name:
                 continue
-            out.append(ResourceRecord(
-                source_dataset="culture_facilities",
-                source_id=(row.get("fcltCd") or hashlib.sha1(name.encode()).hexdigest()[:12]),
-                kind="facility",
-                name=name,
-                category="culture",
-                subcategory=row.get("fcltSe") or None,
-                address=row.get("adres") or None,
-                phone=row.get("telno") or None,
-                homepage=row.get("hmpg") or None,
-                description=row.get("prgrm") or None,
-            ))
+            out.append(
+                ResourceRecord(
+                    source_dataset="culture_facilities",
+                    source_id=(row.get("fcltCd") or hashlib.sha1(name.encode()).hexdigest()[:12]),
+                    kind="facility",
+                    name=name,
+                    category="culture",
+                    subcategory=row.get("fcltSe") or None,
+                    address=row.get("adres") or None,
+                    phone=row.get("telno") or None,
+                    homepage=row.get("hmpg") or None,
+                    description=row.get("prgrm") or None,
+                )
+            )
         return out
 
 
@@ -64,16 +66,18 @@ class CultureEduCollector(Collector):
             if not title:
                 continue
             org_id = hashlib.sha1(org.encode("utf-8")).hexdigest()[:12] if org else "culture-edu"
-            out.append(OfferingRecord(
-                source_dataset="culture_edu",
-                source_id=hashlib.sha1(f"{org}|{title}".encode("utf-8")).hexdigest()[:16],
-                resource_source_id=org_id,
-                title=title,
-                category="education",
-                start_at=parse_kst_date(row.get("교육시작일")),
-                end_at=parse_kst_date(row.get("교육종료일")),
-                apply_start=parse_kst_date(row.get("신청시작일")),
-                apply_end=parse_kst_date(row.get("신청종료일")),
-                fee=0,
-            ))
+            out.append(
+                OfferingRecord(
+                    source_dataset="culture_edu",
+                    source_id=hashlib.sha1(f"{org}|{title}".encode()).hexdigest()[:16],
+                    resource_source_id=org_id,
+                    title=title,
+                    category="education",
+                    start_at=parse_kst_date(row.get("교육시작일")),
+                    end_at=parse_kst_date(row.get("교육종료일")),
+                    apply_start=parse_kst_date(row.get("신청시작일")),
+                    apply_end=parse_kst_date(row.get("신청종료일")),
+                    fee=0,
+                )
+            )
         return out

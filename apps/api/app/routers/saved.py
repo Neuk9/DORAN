@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from fastapi import APIRouter, Cookie, Depends, Response
 from pydantic import BaseModel
@@ -58,14 +58,17 @@ def list_saved(sid: str | None = Cookie(default=None), db: Session = Depends(get
         )
         .order_by(Offering.apply_end.is_(None), Offering.apply_end, SavedItem.created_at.desc())
     ).all()
-    data = [{
-        "id": saved.id,
-        "offering_id": saved.offering_id,
-        "title": offering.title,
-        "category": resource.category,
-        "apply_end": offering.apply_end.isoformat() if offering.apply_end else None,
-        "created_at": saved.created_at.isoformat() if saved.created_at else None,
-    } for saved, offering, resource in rows]
+    data = [
+        {
+            "id": saved.id,
+            "offering_id": saved.offering_id,
+            "title": offering.title,
+            "category": resource.category,
+            "apply_end": offering.apply_end.isoformat() if offering.apply_end else None,
+            "created_at": saved.created_at.isoformat() if saved.created_at else None,
+        }
+        for saved, offering, resource in rows
+    ]
     return envelope(data, "saved")
 
 
@@ -76,7 +79,6 @@ def remove_saved(
     db: Session = Depends(get_db),
 ):
     if sid:
-        db.execute(delete(SavedItem).where(
-            SavedItem.session_id == sid, SavedItem.offering_id == offering_id))
+        db.execute(delete(SavedItem).where(SavedItem.session_id == sid, SavedItem.offering_id == offering_id))
         db.commit()
     return Response(status_code=204)

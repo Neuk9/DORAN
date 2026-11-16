@@ -27,11 +27,20 @@ def haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
     return round(2 * r * math.asin(math.sqrt(a)), 2)
 
 
-def distance_from(criteria_lat: float | None, criteria_lng: float | None,
-                  adm_cd: str | None, lat: float | None, lng: float | None) -> float | None:
+def distance_from(
+    criteria_lat: float | None,
+    criteria_lng: float | None,
+    adm_cd: str | None,
+    lat: float | None,
+    lng: float | None,
+) -> float | None:
     if lat is None or lng is None:
         return None
-    origin = (criteria_lat, criteria_lng) if criteria_lat is not None and criteria_lng is not None else region_center(adm_cd)
+    origin = (
+        (criteria_lat, criteria_lng)
+        if criteria_lat is not None and criteria_lng is not None
+        else region_center(adm_cd)
+    )
     if origin is None or origin[0] is None or origin[1] is None:
         return None
     return haversine_km(origin[0], origin[1], lat, lng)

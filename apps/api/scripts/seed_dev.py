@@ -1,4 +1,5 @@
 """개발/E2E용 고정 시드. 데모 지역·자원·오퍼링·수요지표·격차 지수를 넣는다."""
+
 import json
 import sys
 from datetime import date, datetime, timedelta
@@ -27,17 +28,80 @@ REGIONS = [
 # id, name, category, kind, address, adm_cd, lat, lng
 RESOURCES = [
     ("r1", "수성노인복지관", "care", "facility", "대구 수성구 범어로 100", "2711053000", 35.8400, 128.6200),
-    ("r2", "수성구 가족센터", "care", "facility", "대구 수성구 달구벌대로 200", "2711053000", 35.8450, 128.6250),
+    (
+        "r2",
+        "수성구 가족센터",
+        "care",
+        "facility",
+        "대구 수성구 달구벌대로 200",
+        "2711053000",
+        35.8450,
+        128.6250,
+    ),
     ("r3", "수성구립도서관", "culture", "facility", "대구 수성구 상록로 30", "2711053000", 35.8420, 128.6300),
     ("r4", "수성문화재단", "culture", "facility", "대구 수성구 무학로 40", "2711053000", 35.8380, 128.6180),
-    ("r5", "수성평생학습관", "education", "facility", "대구 수성구 청수로 50", "2711053000", 35.8470, 128.6270),
+    (
+        "r5",
+        "수성평생학습관",
+        "education",
+        "facility",
+        "대구 수성구 청수로 50",
+        "2711053000",
+        35.8470,
+        128.6270,
+    ),
     ("r6", "경산시니어클럽", "care", "facility", "경북 경산시 중앙로 10", "4719051000", 35.8250, 128.7380),
     ("r7", "경산시립도서관", "culture", "facility", "경북 경산시 원효로 20", "4719051000", 35.8200, 128.7420),
-    ("r8", "경산청소년문화의집", "culture", "facility", "경북 경산시 대학로 60", "4719051000", 35.8180, 128.7450),
-    ("r9", "경산평생학습센터", "education", "facility", "경북 경산시 장산로 70", "4719051000", 35.8300, 128.7350),
-    ("r10", "수성구 통합돌봄지원센터", "care", "service", "대구 수성구 범어로 120", "2711053000", 35.8410, 128.6210),
-    ("r11", "경산시 긴급복지지원", "living", "service", "경북 경산시 중앙로 30", "4719051000", 35.8240, 128.7390),
-    ("r12", "수성구 청년센터", "education", "facility", "대구 수성구 동대구로 80", "2711054000", 35.8500, 128.6280),
+    (
+        "r8",
+        "경산청소년문화의집",
+        "culture",
+        "facility",
+        "경북 경산시 대학로 60",
+        "4719051000",
+        35.8180,
+        128.7450,
+    ),
+    (
+        "r9",
+        "경산평생학습센터",
+        "education",
+        "facility",
+        "경북 경산시 장산로 70",
+        "4719051000",
+        35.8300,
+        128.7350,
+    ),
+    (
+        "r10",
+        "수성구 통합돌봄지원센터",
+        "care",
+        "service",
+        "대구 수성구 범어로 120",
+        "2711053000",
+        35.8410,
+        128.6210,
+    ),
+    (
+        "r11",
+        "경산시 긴급복지지원",
+        "living",
+        "service",
+        "경북 경산시 중앙로 30",
+        "4719051000",
+        35.8240,
+        128.7390,
+    ),
+    (
+        "r12",
+        "수성구 청년센터",
+        "education",
+        "facility",
+        "대구 수성구 동대구로 80",
+        "2711054000",
+        35.8500,
+        128.6280,
+    ),
 ]
 
 # id, resource, title, fee, apply_end, age_min, age_max, days
@@ -65,12 +129,24 @@ OFFERINGS = [
 ]
 
 DEMAND = {
-    "2711053000": {"senior_single_ratio": 22.0, "basic_livelihood_ratio": 6.5,
-                   "child_ratio": 14.0, "disabled_ratio": 5.2},
-    "2711054000": {"senior_single_ratio": 15.0, "basic_livelihood_ratio": 4.0,
-                   "child_ratio": 16.0, "disabled_ratio": 4.1},
-    "4719051000": {"senior_single_ratio": 29.0, "basic_livelihood_ratio": 9.5,
-                   "child_ratio": 12.0, "disabled_ratio": 7.8},
+    "2711053000": {
+        "senior_single_ratio": 22.0,
+        "basic_livelihood_ratio": 6.5,
+        "child_ratio": 14.0,
+        "disabled_ratio": 5.2,
+    },
+    "2711054000": {
+        "senior_single_ratio": 15.0,
+        "basic_livelihood_ratio": 4.0,
+        "child_ratio": 16.0,
+        "disabled_ratio": 4.1,
+    },
+    "4719051000": {
+        "senior_single_ratio": 29.0,
+        "basic_livelihood_ratio": 9.5,
+        "child_ratio": 12.0,
+        "disabled_ratio": 7.8,
+    },
 }
 POPULATION = {"2711053000": 28000, "2711054000": 31000, "4719051000": 19000}
 
@@ -81,22 +157,27 @@ def main() -> None:
         for adm, values in DEMAND.items()
         for code, value in values.items()
     ]
-    dummy_resources = [
-        SimpleNamespace(adm_cd=r[5]) for r in RESOURCES
-    ]
+    dummy_resources = [SimpleNamespace(adm_cd=r[5]) for r in RESOURCES]
     d = compute_demand(demand_rows)
     s = compute_supply(dummy_resources, POPULATION)
     gaps = compute_gap(d, s)
 
     with SessionLocal() as session:
-        for table in ("saved_item", "offering", "eligibility_rule", "resource",
-                      "gap_index", "demand_indicator", "region", "snapshot"):
+        for table in (
+            "saved_item",
+            "offering",
+            "eligibility_rule",
+            "resource",
+            "gap_index",
+            "demand_indicator",
+            "region",
+            "snapshot",
+        ):
             session.execute(text(f"DELETE FROM {table}"))
 
-        for adm_cd, name, level, parent, lat, lng in REGIONS:
+        for adm_cd, name, level, parent, _lat, _lng in REGIONS:
             session.execute(
-                text("INSERT INTO region (adm_cd, name, level, parent_cd) "
-                     "VALUES (:a, :n, :l, :p)"),
+                text("INSERT INTO region (adm_cd, name, level, parent_cd) VALUES (:a, :n, :l, :p)"),
                 {"a": adm_cd, "n": name, "l": level, "p": parent},
             )
 
@@ -107,9 +188,19 @@ def main() -> None:
                    source_dataset, source_id, valid_from, updated_at, precision)
                   VALUES (:id, :kind, :name, NULL, :cat, :addr, :lat, :lng, :adm,
                           'seed', :sid, :vf, :ua, 'exact')"""),
-                {"id": rid, "kind": kind, "name": name, "cat": cat, "addr": addr,
-                 "lat": lat, "lng": lng, "adm": adm, "sid": rid,
-                 "vf": date.today(), "ua": NOW},
+                {
+                    "id": rid,
+                    "kind": kind,
+                    "name": name,
+                    "cat": cat,
+                    "addr": addr,
+                    "lat": lat,
+                    "lng": lng,
+                    "adm": adm,
+                    "sid": rid,
+                    "vf": date.today(),
+                    "ua": NOW,
+                },
             )
 
         for oid, rid, title, fee, apply_end, age_min, age_max, days in OFFERINGS:
@@ -120,10 +211,19 @@ def main() -> None:
                    source_id, days_of_week, capacity)
                   VALUES (:id, :rid, :title, :amin, :amax, :fee, 'KRW',
                           :as_, :ae, :status, 'seed', :sid, :days, 20)"""),
-                {"id": oid, "rid": rid, "title": title, "amin": age_min, "amax": age_max,
-                 "fee": fee, "as_": NOW - timedelta(days=10), "ae": apply_end,
-                 "status": "open" if apply_end is None or apply_end > NOW else "expired",
-                 "sid": oid, "days": json.dumps(days)},
+                {
+                    "id": oid,
+                    "rid": rid,
+                    "title": title,
+                    "amin": age_min,
+                    "amax": age_max,
+                    "fee": fee,
+                    "as_": NOW - timedelta(days=10),
+                    "ae": apply_end,
+                    "status": "open" if apply_end is None or apply_end > NOW else "expired",
+                    "sid": oid,
+                    "days": json.dumps(days),
+                },
             )
 
         for adm, values in DEMAND.items():
@@ -132,8 +232,7 @@ def main() -> None:
                     text("""INSERT INTO demand_indicator
                       (adm_cd, period, indicator_code, value, unit, source, captured_at)
                       VALUES (:a, :p, :c, :v, '%', 'seed', :ca)"""),
-                    {"a": adm, "p": NOW.strftime("%Y-%m"), "c": code, "v": value,
-                     "ca": NOW},
+                    {"a": adm, "p": NOW.strftime("%Y-%m"), "c": code, "v": value, "ca": NOW},
                 )
 
         for adm, gap in gaps.items():
@@ -141,9 +240,14 @@ def main() -> None:
                 text("""INSERT INTO gap_index
                   (adm_cd, period, demand_score, supply_score, gap_score, category_scores)
                   VALUES (:a, :p, :d, :s, :g, :c)"""),
-                {"a": adm, "p": NOW.strftime("%Y-%m"), "d": gap.demand_score,
-                 "s": gap.supply_score, "g": gap.gap_score,
-                 "c": json.dumps(gap.categories)},
+                {
+                    "a": adm,
+                    "p": NOW.strftime("%Y-%m"),
+                    "d": gap.demand_score,
+                    "s": gap.supply_score,
+                    "g": gap.gap_score,
+                    "c": json.dumps(gap.categories),
+                },
             )
 
         session.execute(

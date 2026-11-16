@@ -13,8 +13,13 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="ko">
       <body>
-        <header className="topbar" style={{ maxWidth: "960px", margin: "0 auto", padding: "0.75rem 1rem" }}>
-          <Link href="/"><strong>도란도란</strong></Link>
+        <header
+          className="topbar"
+          style={{ maxWidth: "960px", margin: "0 auto", padding: "0.75rem 1rem" }}
+        >
+          <Link href="/">
+            <strong>도란도란</strong>
+          </Link>
           <nav className="nav" aria-label="주요 메뉴">
             <Link href="/chat">AI 상담</Link>
             <Link href="/explore">자원 찾기</Link>

@@ -29,33 +29,46 @@ class SsisFacilityCollector(Collector):
             if not name:
                 continue
             facility_id = (row.get("fcltCd") or "").strip() or hashlib.sha1(
-                f"{name}|{row.get('fcltAddr', '')}".encode("utf-8")).hexdigest()[:12]
-            address = " ".join(filter(None, [
-                (row.get("fcltAddr") or "").strip(),
-                (row.get("fcltDtl_1Addr") or "").strip(),
-            ])) or None
-            resources.append(ResourceRecord(
-                source_dataset="ssis_facilities",
-                source_id=facility_id,
-                kind="facility",
-                name=name,
-                category="care",
-                provider=row.get("fcltKindNm") or None,
-                address=address,
-                phone=(row.get("fcltTelNo") or None),
-                target_text=row.get("fcltUseRcpnNm") or None,
-                source_url=row.get("homepageAddr") or None,
-            ))
+                f"{name}|{row.get('fcltAddr', '')}".encode()
+            ).hexdigest()[:12]
+            address = (
+                " ".join(
+                    filter(
+                        None,
+                        [
+                            (row.get("fcltAddr") or "").strip(),
+                            (row.get("fcltDtl_1Addr") or "").strip(),
+                        ],
+                    )
+                )
+                or None
+            )
+            resources.append(
+                ResourceRecord(
+                    source_dataset="ssis_facilities",
+                    source_id=facility_id,
+                    kind="facility",
+                    name=name,
+                    category="care",
+                    provider=row.get("fcltKindNm") or None,
+                    address=address,
+                    phone=(row.get("fcltTelNo") or None),
+                    target_text=row.get("fcltUseRcpnNm") or None,
+                    source_url=row.get("homepageAddr") or None,
+                )
+            )
             title = (row.get("title") or "").strip()
             if title:
-                offerings.append(OfferingRecord(
-                    source_dataset="ssis_facilities",
-                    source_id=f"{facility_id}-{hashlib.sha1(title.encode()).hexdigest()[:8]}",
-                    resource_source_id=facility_id,
-                    title=title,
-                    category="care",
-                    description=row.get("etcMtr") or None,
-                    apply_start=parse_kst_date(row.get("accpBgnDe")),
-                    apply_end=parse_kst_date(row.get("accpClseDe")),
-                ))
+                offerings.append(
+                    OfferingRecord(
+                        source_dataset="ssis_facilities",
+                        source_id=f"{facility_id}-{hashlib.sha1(title.encode()).hexdigest()[:8]}",
+                        resource_source_id=facility_id,
+                        title=title,
+                        category="care",
+                        description=row.get("etcMtr") or None,
+                        apply_start=parse_kst_date(row.get("accpBgnDe")),
+                        apply_end=parse_kst_date(row.get("accpClseDe")),
+                    )
+                )
         return resources, offerings

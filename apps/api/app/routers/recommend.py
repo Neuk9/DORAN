@@ -27,27 +27,30 @@ def recommend(criteria: SearchCriteria, db: Session = Depends(get_db)):
     candidates: list[Candidate] = []
     for offering, resource in rows:
         rule = db.get(EligibilityRule, (resource.id, "v1"))
-        candidates.append(Candidate(
-            offering_id=offering.id,
-            resource_id=resource.id,
-            category=resource.category,
-            title=offering.title,
-            resource_name=resource.name,
-            apply_end=offering.apply_end,
-            fee=offering.fee,
-            distance_km=distance_from(criteria.lat, criteria.lng, resource.adm_cd,
-                                      resource.lat, resource.lng),
-            days_of_week=offering.days_of_week or [],
-            target_age_min=offering.target_age_min,
-            target_age_max=offering.target_age_max,
-            updated_at=resource.updated_at,
-            eligibility=rule.rule_json if rule else None,
-            source=resource.source_dataset,
-            source_url=resource.source_url,
-            captured_at=resource.updated_at,
-            lat=resource.lat,
-            lng=resource.lng,
-        ))
+        candidates.append(
+            Candidate(
+                offering_id=offering.id,
+                resource_id=resource.id,
+                category=resource.category,
+                title=offering.title,
+                resource_name=resource.name,
+                apply_end=offering.apply_end,
+                fee=offering.fee,
+                distance_km=distance_from(
+                    criteria.lat, criteria.lng, resource.adm_cd, resource.lat, resource.lng
+                ),
+                days_of_week=offering.days_of_week or [],
+                target_age_min=offering.target_age_min,
+                target_age_max=offering.target_age_max,
+                updated_at=resource.updated_at,
+                eligibility=rule.rule_json if rule else None,
+                source=resource.source_dataset,
+                source_url=resource.source_url,
+                captured_at=resource.updated_at,
+                lat=resource.lat,
+                lng=resource.lng,
+            )
+        )
 
     ranked = rank_candidates(candidates, criteria, now=now, limit=5)
     data = [r.model_dump(mode="json") for r in ranked]

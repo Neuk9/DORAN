@@ -26,17 +26,13 @@ class SnapshotStore:
 
     def write(self, dataset: str, rows: list[dict[str, Any]], captured_at: datetime) -> SnapshotResult:
         if not rows:
-            return SnapshotResult(dataset=dataset, status="empty", row_count=0,
-                                  checksum=None, path=None)
+            return SnapshotResult(dataset=dataset, status="empty", row_count=0, checksum=None, path=None)
         path = self._path(dataset, captured_at)
         path.parent.mkdir(parents=True, exist_ok=True)
         df = pd.DataFrame(rows)
         df.to_parquet(path, index=False)
-        checksum = hashlib.sha256(
-            json.dumps(rows, default=str, sort_keys=True).encode("utf-8")
-        ).hexdigest()
-        return SnapshotResult(dataset=dataset, status="ok", row_count=len(rows),
-                              checksum=checksum, path=path)
+        checksum = hashlib.sha256(json.dumps(rows, default=str, sort_keys=True).encode("utf-8")).hexdigest()
+        return SnapshotResult(dataset=dataset, status="ok", row_count=len(rows), checksum=checksum, path=path)
 
     def read_latest(self, dataset: str) -> list[dict[str, Any]] | None:
         files = sorted(self.root.glob(f"*/{dataset}.parquet"), reverse=True)

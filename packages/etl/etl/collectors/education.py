@@ -56,21 +56,25 @@ class ShareNuriCollector(Collector):
                 continue
             age_min, age_max = parse_target_age(row.get("대상"))
             org = (row.get("운영기관명") or row.get("기관명") or "").strip()
-            out.append(OfferingRecord(
-                source_dataset="sharenuri",
-                source_id=hashlib.sha1(f"{org}|{title}".encode("utf-8")).hexdigest()[:16],
-                resource_source_id=hashlib.sha1(org.encode("utf-8")).hexdigest()[:12] if org else "sharenuri",
-                title=title,
-                category="education",
-                target_age_min=age_min,
-                target_age_max=age_max,
-                target_group=row.get("대상") or None,
-                start_at=parse_kst_date(row.get("교육시작일")),
-                end_at=parse_kst_date(row.get("교육종료일")),
-                apply_start=parse_kst_date(row.get("접수시작일")),
-                apply_end=parse_kst_date(row.get("접수종료일")),
-                fee=parse_fee(row.get("수강료")),
-            ))
+            out.append(
+                OfferingRecord(
+                    source_dataset="sharenuri",
+                    source_id=hashlib.sha1(f"{org}|{title}".encode()).hexdigest()[:16],
+                    resource_source_id=hashlib.sha1(org.encode("utf-8")).hexdigest()[:12]
+                    if org
+                    else "sharenuri",
+                    title=title,
+                    category="education",
+                    target_age_min=age_min,
+                    target_age_max=age_max,
+                    target_group=row.get("대상") or None,
+                    start_at=parse_kst_date(row.get("교육시작일")),
+                    end_at=parse_kst_date(row.get("교육종료일")),
+                    apply_start=parse_kst_date(row.get("접수시작일")),
+                    apply_end=parse_kst_date(row.get("접수종료일")),
+                    fee=parse_fee(row.get("수강료")),
+                )
+            )
         return out
 
 
@@ -95,13 +99,15 @@ class KmoocCollector(Collector):
             if not title:
                 continue
             org = (row.get("제공기관") or "").strip()
-            out.append(OfferingRecord(
-                source_dataset="kmooc",
-                source_id=hashlib.sha1(title.encode("utf-8")).hexdigest()[:16],
-                resource_source_id=hashlib.sha1(org.encode("utf-8")).hexdigest()[:12] if org else "kmooc",
-                title=title,
-                category="education",
-                fee=parse_fee(row.get("수강료")),
-                description=row.get("강좌소개") or None,
-            ))
+            out.append(
+                OfferingRecord(
+                    source_dataset="kmooc",
+                    source_id=hashlib.sha1(title.encode("utf-8")).hexdigest()[:16],
+                    resource_source_id=hashlib.sha1(org.encode("utf-8")).hexdigest()[:12] if org else "kmooc",
+                    title=title,
+                    category="education",
+                    fee=parse_fee(row.get("수강료")),
+                    description=row.get("강좌소개") or None,
+                )
+            )
         return out

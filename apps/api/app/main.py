@@ -36,8 +36,10 @@ def create_app() -> FastAPI:
             return await call_next(request)
         limit = 10 if bucket == "llm" else 20
         if len(window) >= limit:
-            return JSONResponse(status_code=429, content={
-                "error": {"code": "RATE_LIMITED", "message": "요청이 너무 많습니다"}})
+            return JSONResponse(
+                status_code=429,
+                content={"error": {"code": "RATE_LIMITED", "message": "요청이 너무 많습니다"}},
+            )
         window.append(now)
         app.state.rate[key] = window
         return await call_next(request)

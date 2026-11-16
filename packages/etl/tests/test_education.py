@@ -9,8 +9,15 @@ def test_parse_fee(text, expected):
 
 
 def test_sharenuri_maps_target_age():
-    rows = [{"강좌명": "어린이 코딩", "대상": "초등 1~3학년", "수강료": "무료",
-             "교육시작일": "2026-11-20", "교육종료일": "2026-12-18"}]
+    rows = [
+        {
+            "강좌명": "어린이 코딩",
+            "대상": "초등 1~3학년",
+            "수강료": "무료",
+            "교육시작일": "2026-11-20",
+            "교육종료일": "2026-12-18",
+        }
+    ]
     recs = ShareNuriCollector.normalize_rows(rows)
     assert recs[0].title == "어린이 코딩"
     assert (recs[0].target_age_min, recs[0].target_age_max) == (7, 9)

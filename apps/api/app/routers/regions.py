@@ -23,10 +23,7 @@ def search_regions(q: str = Query(default="", max_length=50), db: Session = Depe
 @router.get("/{adm_cd}/gap")
 def region_gap(adm_cd: str, db: Session = Depends(get_db)):
     row = db.execute(
-        select(GapIndex)
-        .where(GapIndex.adm_cd == adm_cd)
-        .order_by(desc(GapIndex.period))
-        .limit(1)
+        select(GapIndex).where(GapIndex.adm_cd == adm_cd).order_by(desc(GapIndex.period)).limit(1)
     ).scalar_one_or_none()
     if row is None:
         raise HTTPException(status_code=404, detail="REGION_NOT_FOUND")

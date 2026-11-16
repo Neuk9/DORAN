@@ -54,8 +54,7 @@ export default async function ProgramPage({ params }: { params: Promise<{ id: st
           {p.apply_end?.slice(0, 10) ?? "상시"}
         </p>
         <p>
-          <strong>전화</strong>{" "}
-          {p.phone ? <a href={`tel:${p.phone}`}>{p.phone}</a> : "정보 없음"}
+          <strong>전화</strong> {p.phone ? <a href={`tel:${p.phone}`}>{p.phone}</a> : "정보 없음"}
         </p>
         <p>
           <strong>주소</strong> {p.address ?? "정보 없음"}
@@ -80,8 +79,7 @@ export default async function ProgramPage({ params }: { params: Promise<{ id: st
       </p>
 
       <p className="small muted" style={{ marginTop: "1rem" }}>
-        출처: {p.source} · 기준일:{" "}
-        {p.captured_at ? p.captured_at.slice(0, 10) : "확인 필요"} ·{" "}
+        출처: {p.source} · 기준일: {p.captured_at ? p.captured_at.slice(0, 10) : "확인 필요"} ·{" "}
         {detail.meta.disclaimer}
       </p>
     </main>

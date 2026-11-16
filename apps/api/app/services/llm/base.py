@@ -2,8 +2,6 @@ import json
 from collections.abc import AsyncIterator
 from typing import Any, Protocol, TypedDict
 
-from app.schemas import SlotExtraction  # re-export for tests and callers
-
 
 class Message(TypedDict):
     role: str

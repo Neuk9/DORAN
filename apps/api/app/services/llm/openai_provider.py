@@ -8,8 +8,7 @@ from app.services.llm.base import LLMError, LLMSchemaError, LLMTimeout, parse_js
 
 
 class OpenAIProvider:
-    def __init__(self, api_key: str, model: str = "gpt-4o-mini",
-                 base_url: str = "https://api.openai.com/v1"):
+    def __init__(self, api_key: str, model: str = "gpt-4o-mini", base_url: str = "https://api.openai.com/v1"):
         self.api_key = api_key
         self.model = model
         self.base_url = base_url

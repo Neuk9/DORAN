@@ -14,11 +14,27 @@ pytestmark = pytest.mark.integration
 def test_resource_unique_source_key():
     source_id = f"test-{uuid4()}"
     with SessionLocal() as s:
-        s.add(Resource(source_dataset="ssis_local", source_id=source_id, kind="service",
-                       name="A", category="care", valid_from=date(2026, 1, 1)))
+        s.add(
+            Resource(
+                source_dataset="ssis_local",
+                source_id=source_id,
+                kind="service",
+                name="A",
+                category="care",
+                valid_from=date(2026, 1, 1),
+            )
+        )
         s.commit()
-        s.add(Resource(source_dataset="ssis_local", source_id=source_id, kind="service",
-                       name="A", category="care", valid_from=date(2026, 1, 1)))
+        s.add(
+            Resource(
+                source_dataset="ssis_local",
+                source_id=source_id,
+                kind="service",
+                name="A",
+                category="care",
+                valid_from=date(2026, 1, 1),
+            )
+        )
         with pytest.raises(IntegrityError):
             s.commit()
         s.rollback()

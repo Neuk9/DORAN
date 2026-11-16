@@ -32,9 +32,7 @@ class Region(Base):
     name: Mapped[str] = mapped_column(String(100))
     level: Mapped[str] = mapped_column(String(10))
     parent_cd: Mapped[str | None] = mapped_column(String(10), nullable=True)
-    geometry: Mapped[object | None] = mapped_column(
-        Geometry("MULTIPOLYGON", srid=4326, nullable=True)
-    )
+    geometry: Mapped[object | None] = mapped_column(Geometry("MULTIPOLYGON", srid=4326, nullable=True))
 
 
 class DemandIndicator(Base):
@@ -87,14 +85,10 @@ class Resource(Base):
 
 class Offering(Base):
     __tablename__ = "offering"
-    __table_args__ = (
-        UniqueConstraint("source_dataset", "source_id", name="uq_offering_source"),
-    )
+    __table_args__ = (UniqueConstraint("source_dataset", "source_id", name="uq_offering_source"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
-    resource_id: Mapped[str] = mapped_column(
-        ForeignKey("resource.id", ondelete="CASCADE"), index=True
-    )
+    resource_id: Mapped[str] = mapped_column(ForeignKey("resource.id", ondelete="CASCADE"), index=True)
     title: Mapped[str] = mapped_column(String(300))
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     target_age_min: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -119,9 +113,7 @@ class Offering(Base):
 class EligibilityRule(Base):
     __tablename__ = "eligibility_rule"
 
-    resource_id: Mapped[str] = mapped_column(
-        ForeignKey("resource.id", ondelete="CASCADE"), primary_key=True
-    )
+    resource_id: Mapped[str] = mapped_column(ForeignKey("resource.id", ondelete="CASCADE"), primary_key=True)
     parser_version: Mapped[str] = mapped_column(String(20), primary_key=True)
     rule_json: Mapped[dict] = mapped_column(JSONB)
     confidence: Mapped[float] = mapped_column(Float, default=0.0)
@@ -152,9 +144,7 @@ class Snapshot(Base):
 
 class SavedItem(Base):
     __tablename__ = "saved_item"
-    __table_args__ = (
-        UniqueConstraint("session_id", "offering_id", name="uq_saved_item"),
-    )
+    __table_args__ = (UniqueConstraint("session_id", "offering_id", name="uq_saved_item"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     session_id: Mapped[str] = mapped_column(String(64), index=True)

@@ -52,9 +52,7 @@ export default async function ReportPage({ params }: { params: Promise<{ admCd: 
         <p data-testid="gap-score">
           <strong>격차 지수</strong> {gap.gap_score.toFixed(1)}%
         </p>
-        <p className="small muted">
-          격차가 높을수록 수요에 비해 지역 자원이 부족하다는 뜻입니다.
-        </p>
+        <p className="small muted">격차가 높을수록 수요에 비해 지역 자원이 부족하다는 뜻입니다.</p>
       </div>
 
       <h2>분야별 격차</h2>
@@ -96,7 +94,9 @@ export default async function ReportPage({ params }: { params: Promise<{ admCd: 
         <Link href="/chat">AI 상담 받기</Link>
       </p>
 
-      <p className="small muted">가중치 기반 참고 지표이며, 실제 정책 판단에는 현장 확인이 필요합니다.</p>
+      <p className="small muted">
+        가중치 기반 참고 지표이며, 실제 정책 판단에는 현장 확인이 필요합니다.
+      </p>
     </main>
   );
 }

@@ -1,6 +1,7 @@
 import uuid
+from collections.abc import Iterable
 from datetime import date, datetime
-from typing import Any, Iterable
+from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -61,34 +62,37 @@ def upsert_records(session: Session, records: Iterable[ResourceRecord]) -> int:
     now = datetime.now().astimezone()
     count = 0
     for r in records:
-        session.execute(RESOURCE_SQL, {
-            "id": str(uuid.uuid4()),
-            "kind": r.kind,
-            "name": r.name,
-            "provider": r.provider,
-            "category": r.category,
-            "subcategory": r.subcategory,
-            "description": r.description,
-            "address": r.address,
-            "lat": r.lat,
-            "lng": r.lng,
-            "adm_cd": r.adm_cd,
-            "phone": r.phone,
-            "homepage": r.homepage,
-            "target_text": r.target_text,
-            "cost_type": r.cost_type,
-            "cost_amount": r.cost_amount,
-            "apply_method": r.apply_method,
-            "apply_url": r.apply_url,
-            "apply_start": r.apply_start,
-            "apply_end": r.apply_end,
-            "source_dataset": r.source_dataset,
-            "source_id": r.source_id,
-            "source_url": r.source_url,
-            "valid_from": r.valid_from or date.today(),
-            "updated_at": _as_datetime(r.updated_at, now),
-            "precision": r.precision,
-        })
+        session.execute(
+            RESOURCE_SQL,
+            {
+                "id": str(uuid.uuid4()),
+                "kind": r.kind,
+                "name": r.name,
+                "provider": r.provider,
+                "category": r.category,
+                "subcategory": r.subcategory,
+                "description": r.description,
+                "address": r.address,
+                "lat": r.lat,
+                "lng": r.lng,
+                "adm_cd": r.adm_cd,
+                "phone": r.phone,
+                "homepage": r.homepage,
+                "target_text": r.target_text,
+                "cost_type": r.cost_type,
+                "cost_amount": r.cost_amount,
+                "apply_method": r.apply_method,
+                "apply_url": r.apply_url,
+                "apply_start": r.apply_start,
+                "apply_end": r.apply_end,
+                "source_dataset": r.source_dataset,
+                "source_id": r.source_id,
+                "source_url": r.source_url,
+                "valid_from": r.valid_from or date.today(),
+                "updated_at": _as_datetime(r.updated_at, now),
+                "precision": r.precision,
+            },
+        )
         count += 1
     session.execute(DEDUPE_SQL)
     return count
@@ -103,7 +107,8 @@ def upsert_offerings(session: Session, offerings: Iterable[OfferingRecord]) -> i
         ).fetchone()
         if row is None:
             continue
-        session.execute(text("""
+        session.execute(
+            text("""
             INSERT INTO offering (
               id, resource_id, title, description, target_age_min, target_age_max,
               target_group, start_at, end_at, days_of_week, time_start, time_end,
@@ -119,27 +124,29 @@ def upsert_offerings(session: Session, offerings: Iterable[OfferingRecord]) -> i
               title = EXCLUDED.title, apply_start = EXCLUDED.apply_start,
               apply_end = EXCLUDED.apply_end, fee = EXCLUDED.fee,
               description = EXCLUDED.description
-        """), {
-            "id": str(uuid.uuid4()),
-            "resource_id": row[0],
-            "title": o.title,
-            "description": o.description,
-            "target_age_min": o.target_age_min,
-            "target_age_max": o.target_age_max,
-            "target_group": o.target_group,
-            "start_at": o.start_at,
-            "end_at": o.end_at,
-            "days_of_week": o.days_of_week,
-            "time_start": o.time_start,
-            "time_end": o.time_end,
-            "capacity": o.capacity,
-            "enrolled": o.enrolled,
-            "fee": o.fee,
-            "apply_start": o.apply_start,
-            "apply_end": o.apply_end,
-            "status": o.status,
-            "source_dataset": o.source_dataset,
-            "source_id": o.source_id,
-        })
+        """),
+            {
+                "id": str(uuid.uuid4()),
+                "resource_id": row[0],
+                "title": o.title,
+                "description": o.description,
+                "target_age_min": o.target_age_min,
+                "target_age_max": o.target_age_max,
+                "target_group": o.target_group,
+                "start_at": o.start_at,
+                "end_at": o.end_at,
+                "days_of_week": o.days_of_week,
+                "time_start": o.time_start,
+                "time_end": o.time_end,
+                "capacity": o.capacity,
+                "enrolled": o.enrolled,
+                "fee": o.fee,
+                "apply_start": o.apply_start,
+                "apply_end": o.apply_end,
+                "status": o.status,
+                "source_dataset": o.source_dataset,
+                "source_id": o.source_id,
+            },
+        )
         count += 1
     return count

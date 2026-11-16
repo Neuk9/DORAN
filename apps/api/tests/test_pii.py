@@ -1,5 +1,5 @@
-from app.services.pii import mask_pii
 from app.services.crisis import detect_crisis
+from app.services.pii import mask_pii
 
 
 def test_rrn_and_phone_masked():

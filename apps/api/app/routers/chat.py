@@ -10,10 +10,10 @@ from sqlalchemy.orm import Session
 from app.deps import get_db
 from app.models import EligibilityRule, Offering, Resource
 from app.schemas import Candidate, SearchCriteria, SlotExtraction
-from app.services.llm.base import LLMError, LLMProvider
-from app.services.llm.factory import get_llm
 from app.services.crisis import detect_crisis
 from app.services.geo import distance_from
+from app.services.llm.base import LLMError, LLMProvider
+from app.services.llm.factory import get_llm
 from app.services.pii import mask_pii
 from app.services.ranking import rank_candidates
 from app.services.sessions import store
@@ -33,8 +33,9 @@ class ChatRequest(BaseModel):
     session_id: str | None = None
 
 
-async def extract_slots(message: str, llm: LLMProvider,
-                        previous: SlotExtraction | None = None) -> SlotExtraction:
+async def extract_slots(
+    message: str, llm: LLMProvider, previous: SlotExtraction | None = None
+) -> SlotExtraction:
     result = await llm.complete_json(system=SYSTEM, user=message, schema=SlotExtraction)
     if not isinstance(result, SlotExtraction):
         result = SlotExtraction()
@@ -46,8 +47,16 @@ def merge_slots(previous: SlotExtraction | None, new: SlotExtraction) -> SlotExt
         merged = new.model_copy()
     else:
         merged = previous.model_copy()
-        for field_name in ("region_adm_cd", "age_years", "budget_krw", "max_travel_minutes",
-                           "care_need", "interests", "household", "transport"):
+        for field_name in (
+            "region_adm_cd",
+            "age_years",
+            "budget_krw",
+            "max_travel_minutes",
+            "care_need",
+            "interests",
+            "household",
+            "transport",
+        ):
             value = getattr(new, field_name)
             if value:
                 setattr(merged, field_name, value)
@@ -55,8 +64,7 @@ def merge_slots(previous: SlotExtraction | None, new: SlotExtraction) -> SlotExt
             merged.age_group = new.age_group
         if new.urgency != "normal":
             merged.urgency = new.urgency
-    merged.missing_slots = [slot for slot in ("region_adm_cd", "age_years")
-                            if not getattr(merged, slot)]
+    merged.missing_slots = [slot for slot in ("region_adm_cd", "age_years") if not getattr(merged, slot)]
     return merged
 
 
@@ -88,25 +96,27 @@ def _build_cards(db: Session, slots: SlotExtraction) -> list[dict]:
     candidates = []
     for offering, resource in rows:
         rule = db.get(EligibilityRule, (resource.id, "v1"))
-        candidates.append(Candidate(
-            offering_id=offering.id,
-            resource_id=resource.id,
-            category=resource.category,
-            title=offering.title,
-            resource_name=resource.name,
-            apply_end=offering.apply_end,
-            fee=offering.fee,
-            distance_km=distance_from(None, None, resource.adm_cd, resource.lat, resource.lng),
-            target_age_min=offering.target_age_min,
-            target_age_max=offering.target_age_max,
-            updated_at=resource.updated_at,
-            eligibility=rule.rule_json if rule else None,
-            source=resource.source_dataset,
-            source_url=resource.source_url,
-            captured_at=resource.updated_at,
-            lat=resource.lat,
-            lng=resource.lng,
-        ))
+        candidates.append(
+            Candidate(
+                offering_id=offering.id,
+                resource_id=resource.id,
+                category=resource.category,
+                title=offering.title,
+                resource_name=resource.name,
+                apply_end=offering.apply_end,
+                fee=offering.fee,
+                distance_km=distance_from(None, None, resource.adm_cd, resource.lat, resource.lng),
+                target_age_min=offering.target_age_min,
+                target_age_max=offering.target_age_max,
+                updated_at=resource.updated_at,
+                eligibility=rule.rule_json if rule else None,
+                source=resource.source_dataset,
+                source_url=resource.source_url,
+                captured_at=resource.updated_at,
+                lat=resource.lat,
+                lng=resource.lng,
+            )
+        )
     ranked = rank_candidates(candidates, criteria, now=now, limit=5)
     return [
         {
@@ -123,11 +133,14 @@ async def chat(payload: ChatRequest, db: Session = Depends(get_db)):
     async def stream() -> AsyncIterator[str]:
         crisis = detect_crisis(payload.message)
         if crisis is not None:
-            yield _sse("crisis", {
-                "categories": crisis.categories,
-                "hotlines": crisis.hotlines,
-                "message": "지금 위험한 상황이라면 즉시 도움을 받아 주세요.",
-            })
+            yield _sse(
+                "crisis",
+                {
+                    "categories": crisis.categories,
+                    "hotlines": crisis.hotlines,
+                    "message": "지금 위험한 상황이라면 즉시 도움을 받아 주세요.",
+                },
+            )
             yield _sse("done", {})
             return
         llm = get_llm()
@@ -136,11 +149,14 @@ async def chat(payload: ChatRequest, db: Session = Depends(get_db)):
         try:
             slots = await extract_slots(mask_pii(payload.message).text, llm, previous)
         except LLMError:
-            yield _sse("fallback", {
-                "message": "AI 응답이 지연되어 기본 안내로 진행합니다. "
-                           "가까운 주민센터나 129에 문의해 주세요.",
-                "hotlines": ["129", "112", "119"],
-            })
+            yield _sse(
+                "fallback",
+                {
+                    "message": "AI 응답이 지연되어 기본 안내로 진행합니다. "
+                    "가까운 주민센터나 129에 문의해 주세요.",
+                    "hotlines": ["129", "112", "119"],
+                },
+            )
             yield _sse("done", {})
             return
 
@@ -152,8 +168,11 @@ async def chat(payload: ChatRequest, db: Session = Depends(get_db)):
         except Exception:  # noqa: BLE001 - recommendation failure must not break chat
             cards = []
         yield _sse("cards", {"items": cards})
-        text = ("조건에 맞는 자원을 찾았어요. 카드를 눌러 신청 방법을 확인하세요."
-                if cards else "조건에 맞는 자원을 찾지 못했어요. 조건을 조금 넓혀 볼까요?")
+        text = (
+            "조건에 맞는 자원을 찾았어요. 카드를 눌러 신청 방법을 확인하세요."
+            if cards
+            else "조건에 맞는 자원을 찾지 못했어요. 조건을 조금 넓혀 볼까요?"
+        )
         yield _sse("message_delta", {"text": text})
         yield _sse("done", {})
 

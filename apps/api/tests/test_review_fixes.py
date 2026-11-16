@@ -1,5 +1,3 @@
-from datetime import datetime, timezone
-
 from fastapi.testclient import TestClient
 
 from app.main import create_app
@@ -28,9 +26,15 @@ def test_recommend_items_carry_source_and_captured_at():
 
 def test_recommend_computes_distance_when_coordinates_given():
     client = TestClient(create_app())
-    res = client.post("/api/recommend", json={
-        "adm_cd": "2711053000", "age_years": 68, "lat": 35.84, "lng": 128.62,
-    })
+    res = client.post(
+        "/api/recommend",
+        json={
+            "adm_cd": "2711053000",
+            "age_years": 68,
+            "lat": 35.84,
+            "lng": 128.62,
+        },
+    )
     distances = [i["distance_km"] for i in res.json()["data"]]
     assert any(d is not None for d in distances)
 

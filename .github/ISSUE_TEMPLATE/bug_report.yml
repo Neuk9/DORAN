@@ -1,0 +1,32 @@
+name: 버그 제보
+description: 재현 가능한 버그를 제보합니다.
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: 무엇이 잘못되었나요?
+      description: 기대한 동작과 실제 동작을 적어주세요.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 재현 방법
+      placeholder: |
+        1. /chat 접속
+        2. "초1 아이 돌봄" 입력
+        3. ...
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: 환경
+      placeholder: "macOS 15, Chrome 140, LLM_PROVIDER=mock"
+  - type: textarea
+    id: logs
+    attributes:
+      label: 로그 / 스크린샷
+      render: shell

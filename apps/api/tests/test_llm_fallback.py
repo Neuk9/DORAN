@@ -7,8 +7,7 @@ from app.services.llm.mock_provider import MockProvider
 
 async def test_schema_violation_falls_back_to_template():
     provider = MockProvider(responses=['{"invalid": true}'])
-    result = await provider.complete_json(
-        system="s", user="u", schema=SlotExtraction, timeout_s=1)
+    result = await provider.complete_json(system="s", user="u", schema=SlotExtraction, timeout_s=1)
     assert result.region_adm_cd is None
     assert result.missing_slots
 

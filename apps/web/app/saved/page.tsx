@@ -32,7 +32,9 @@ export default function SavedPage() {
   return (
     <main>
       <h1>내 체크리스트</h1>
-      <p className="muted">익명 세션 기준으로 24시간 동안 보관됩니다. 개인정보는 저장하지 않습니다.</p>
+      <p className="muted">
+        익명 세션 기준으로 24시간 동안 보관됩니다. 개인정보는 저장하지 않습니다.
+      </p>
 
       {loaded && items.length === 0 && <p>저장한 자원이 없습니다.</p>}
 

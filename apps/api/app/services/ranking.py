@@ -138,9 +138,9 @@ def rank_candidates(
         best = None
         best_value = float("-inf")
         for cand in pool:
-            redundancy = max(
-                (1.0 if cand.category == s.category else 0.0) for s in selected
-            ) if selected else 0.0
+            redundancy = (
+                max((1.0 if cand.category == s.category else 0.0) for s in selected) if selected else 0.0
+            )
             value = mmr_lambda * cand.score - (1 - mmr_lambda) * redundancy
             if value > best_value:
                 best, best_value = cand, value

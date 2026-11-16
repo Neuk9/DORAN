@@ -1,13 +1,11 @@
 import argparse
 import os
 from pathlib import Path
-from datetime import date
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from etl.collectors.culture import CultureEduCollector, CultureFacilityCollector
-from etl.collectors.demand import KosisCollector, PopulationCollector
 from etl.collectors.education import KmoocCollector, ShareNuriCollector
 from etl.collectors.ssis_facilities import SsisFacilityCollector
 from etl.collectors.ssis_welfare import (

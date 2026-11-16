@@ -1,4 +1,3 @@
-import re
 from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -54,10 +53,17 @@ class PopulationCollector(Collector):
             value = _ratio(row.get("single_households_65plus"), row.get("total_households"))
             if value is None:
                 continue
-            out.append(DemandIndicatorRecord(
-                adm_cd=adm_cd, period=period, indicator_code="senior_single_ratio",
-                value=value, unit="%", source="행정안전부", captured_at=now,
-            ))
+            out.append(
+                DemandIndicatorRecord(
+                    adm_cd=adm_cd,
+                    period=period,
+                    indicator_code="senior_single_ratio",
+                    value=value,
+                    unit="%",
+                    source="행정안전부",
+                    captured_at=now,
+                )
+            )
         return out
 
 
@@ -90,8 +96,15 @@ class KosisCollector(Collector):
             period = (row.get("PRD_DE") or "").strip()
             if not adm_cd or not period:
                 continue
-            out.append(DemandIndicatorRecord(
-                adm_cd=adm_cd, period=period, indicator_code=indicator_code,
-                value=value, unit=row.get("UNIT_NM") or "%", source="KOSIS", captured_at=now,
-            ))
+            out.append(
+                DemandIndicatorRecord(
+                    adm_cd=adm_cd,
+                    period=period,
+                    indicator_code=indicator_code,
+                    value=value,
+                    unit=row.get("UNIT_NM") or "%",
+                    source="KOSIS",
+                    captured_at=now,
+                )
+            )
         return out

@@ -13,8 +13,9 @@ from app.timeutil import end_of_day_kst, now_kst
 router = APIRouter(prefix="/programs", tags=["programs"])
 
 
-def _summary(offering: Offering, resource: Resource,
-             lat: float | None = None, lng: float | None = None) -> dict:
+def _summary(
+    offering: Offering, resource: Resource, lat: float | None = None, lng: float | None = None
+) -> dict:
     return {
         "offering_id": offering.id,
         "resource_id": resource.id,
@@ -91,10 +92,7 @@ def get_program(offering_id: str, db: Session = Depends(get_db)):
     offering, resource = row
     rule = db.get(EligibilityRule, (resource.id, "v1"))
     now = now_kst()
-    stale = bool(
-        resource.updated_at
-        and (now - resource.updated_at).days > 90
-    )
+    stale = bool(resource.updated_at and (now - resource.updated_at).days > 90)
     data = {
         **_summary(offering, resource),
         "description": offering.description,
