@@ -50,7 +50,7 @@ export default function ProgramDetailPage() {
       <div className="rounded-2xl border border-line bg-surface p-10 text-center">
         <p className="text-base font-semibold text-muted">{error || "데이터가 없습니다."}</p>
         <Link href="/" className="mt-4 inline-block text-sm font-bold text-brand hover:underline">
-          AI 검색 홈으로 돌아가기
+          맞춤 검색 홈으로 돌아가기
         </Link>
       </div>
     );

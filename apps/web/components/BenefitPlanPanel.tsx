@@ -47,7 +47,7 @@ export function BenefitPlanPanel({
 
   return (
     <section className="overflow-hidden rounded-2xl border border-line bg-surface shadow-card">
-      {/* 상단: AI 답변 + 핵심 혜택 수치 */}
+      {/* 상단: 맞춤 분석 요약 + 핵심 혜택 수치 */}
       <div className="px-6 py-6 sm:px-7 sm:py-7">
         <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-start">
           <div className="max-w-3xl space-y-2.5">

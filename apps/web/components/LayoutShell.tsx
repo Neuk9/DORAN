@@ -31,7 +31,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
   }, [pathname]);
 
   const mobileTabs = [
-    { href: "/", label: "AI 검색", icon: Search },
+    { href: "/", label: "맞춤", icon: Search },
     { href: "/explore", label: "탐색", icon: Compass },
     { href: `/report/${selectedAdmCd}`, label: "격차", icon: BarChart3 },
     { href: "/saved", label: "저장", icon: Bookmark, badge: savedItems.length },
@@ -65,7 +65,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
           <div className="flex flex-col items-start gap-2 text-xs text-subtle sm:items-end">
             <div className="flex items-center gap-4 font-semibold text-muted">
               <Link href="/" className="hover:text-brand">
-                AI 검색
+                맞춤 검색
               </Link>
               <Link href="/explore" className="hover:text-brand">
                 전체 탐색

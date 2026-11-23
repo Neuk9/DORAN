@@ -21,7 +21,7 @@ export function Header() {
   } = useApp();
 
   const navItems = [
-    { href: "/", label: "AI 검색", icon: Search },
+    { href: "/", label: "맞춤 검색", icon: Search },
     { href: "/explore", label: "전체 탐색", icon: Compass },
     { href: `/report/${selectedAdmCd}`, label: "지역 격차", icon: BarChart3 },
     { href: "/saved", label: "체크리스트", icon: Bookmark, badge: savedItems.length },

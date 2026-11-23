@@ -40,14 +40,14 @@ export default function SavedPage() {
           </span>
           <h2 className="mt-4 text-xl font-extrabold text-ink">저장한 공공자원이 아직 없어요</h2>
           <p className="mt-1.5 max-w-lg text-base leading-relaxed text-muted">
-            AI 검색이나 전체 탐색에서 관심 있는 항목의 ‘저장’ 버튼을 눌러 체크리스트를 만들어 보세요.
+            맞춤 검색이나 전체 탐색에서 관심 있는 항목의 ‘저장’ 버튼을 눌러 체크리스트를 만들어 보세요.
           </p>
           <div className="mt-6 flex gap-3">
             <Link
               href="/"
               className="rounded-xl bg-brand px-5 py-3 text-sm font-bold text-white hover:bg-brand-strong"
             >
-              AI 검색으로 찾기
+              맞춤 검색으로 찾기
             </Link>
             <Link
               href="/explore"
