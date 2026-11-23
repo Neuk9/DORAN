@@ -1,3 +1,4 @@
+import certifi
 from pymongo import ASCENDING, DESCENDING, GEOSPHERE, TEXT, AsyncMongoClient
 from pymongo.asynchronous.database import AsyncDatabase
 
@@ -11,7 +12,10 @@ class DatabaseManager:
     async def connect(self, uri: str | None = None, db_name: str | None = None) -> AsyncDatabase:
         target_uri = uri or settings.mongodb_uri
         target_db = db_name or settings.mongodb_db
-        self.client = AsyncMongoClient(target_uri, serverSelectionTimeoutMS=5000)
+        client_kwargs: dict = {"serverSelectionTimeoutMS": 15000}
+        if target_uri.startswith("mongodb+srv://") or "tls=true" in target_uri.lower():
+            client_kwargs["tlsCAFile"] = certifi.where()
+        self.client = AsyncMongoClient(target_uri, **client_kwargs)
         self.db = self.client[target_db]
         await self.ensure_indexes(self.db)
         return self.db
