@@ -196,6 +196,12 @@ export interface SavedChecklist {
 
 export interface NearestRegionResult {
   region: RegionStat;
+  actualRegion?: {
+    sido: string;
+    sigungu: string;
+    dong: string;
+    admCd: string;
+  } | null;
   distanceKm: number;
   inServiceArea: boolean;
 }

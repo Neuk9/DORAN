@@ -47,6 +47,10 @@ export async function fetchPrograms(params?: {
   sigungu?: string;
   q?: string;
   includeClosed?: boolean;
+  includeOnline?: boolean;
+  lat?: number;
+  lng?: number;
+  radiusKm?: number;
   limit?: number;
 }): Promise<Program[]> {
   const qs = new URLSearchParams();
@@ -57,6 +61,10 @@ export async function fetchPrograms(params?: {
   if (params?.sigungu) qs.set("sigungu", params.sigungu);
   if (params?.q) qs.set("q", params.q);
   if (params?.includeClosed) qs.set("includeClosed", "true");
+  if (params?.includeOnline) qs.set("includeOnline", "true");
+  if (params?.lat != null) qs.set("lat", String(params.lat));
+  if (params?.lng != null) qs.set("lng", String(params.lng));
+  if (params?.radiusKm != null) qs.set("radiusKm", String(params.radiusKm));
   if (params?.limit) qs.set("limit", String(params.limit));
   const query = qs.toString();
   return requestJson<Program[]>(`/api/programs${query ? `?${query}` : ""}`);

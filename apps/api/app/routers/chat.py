@@ -13,6 +13,7 @@ from app.models.schemas import (
 from app.services.eligibility import evaluate_eligibility
 from app.services.explain import build_explanation
 from app.services.gap import serialize_program
+from app.services.kakao_places import fetch_nearby_public_places, reverse_geocode
 from app.services.llm.provider import get_llm_provider
 from app.services.planner import (
     build_action_plan_and_docs,
@@ -53,6 +54,12 @@ async def recommend_chat(payload: ChatRecommendRequest) -> ApiResponse:
     user_coords: tuple[float, float] | None = None
     if payload.lat is not None and payload.lng is not None:
         user_coords = (payload.lat, payload.lng)
+        if not profile.sigungu:
+            actual = await reverse_geocode(payload.lat, payload.lng)
+            if actual:
+                profile.sido = profile.sido or actual.get("sido") or None
+                profile.sigungu = profile.sigungu or actual.get("sigungu") or None
+                profile.dong = profile.dong or actual.get("dong") or None
 
     target_adm = profile.admCd or payload.admCd
     if target_adm:
@@ -71,16 +78,32 @@ async def recommend_chat(payload: ChatRecommendRequest) -> ApiResponse:
             coords = region_doc["center"]["coordinates"]
             user_coords = (coords[1], coords[0])
 
-    # 4) 전수 후보 조회 + 결정론 자격 판정 + 제외 사유 투명 기록 + 다차원 스코어링
+    # 4) 전수 후보 조회 (MongoDB 공공자원 + 사용자 좌표 기준 실시간 주변 공공시설 통합)
     cursor = db["programs"].find({})
     now_kst = datetime.now(KST)
+    candidate_programs = [serialize_program(doc) async for doc in cursor]
+
+    if user_coords is not None:
+        live_places = await fetch_nearby_public_places(
+            lat=user_coords[0],
+            lng=user_coords[1],
+            categories=profile.categories or None,
+            keywords=profile.keywords or None,
+            radius_m=5000,
+            limit=5,
+            db=db,
+        )
+        existing_providers = {p.provider for p in candidate_programs}
+        for place in live_places:
+            if place.provider not in existing_providers:
+                candidate_programs.append(place)
+                existing_providers.add(place.provider)
+
     scored: list[RecommendedProgram] = []
     excluded: list[ExcludedProgram] = []
-    total_evaluated = 0
+    total_evaluated = len(candidate_programs)
 
-    async for doc in cursor:
-        total_evaluated += 1
-        prog = serialize_program(doc)
+    for prog in candidate_programs:
         evaluation = evaluate_eligibility(prog, profile, now=now_kst)
         if evaluation.status == "ineligible":
             excluded.append(
@@ -108,9 +131,16 @@ async def recommend_chat(payload: ChatRecommendRequest) -> ApiResponse:
     scored.sort(key=lambda item: item.scores.total, reverse=True)
     top_results = scored[: payload.limit]
 
+    # 제외 목록은 마감·연령 사유가 먼저 보이도록 정렬
+    excluded.sort(
+        key=lambda e: (
+            0 if any("마감" in r for r in e.reasons) else 1 if any("연령" in r for r in e.reasons) else 2
+        )
+    )
+
     # 5) 예상 혜택 합산 · 숨은 혜택 발굴 · 3단계 실행 플랜 · 통합 구비서류 생성
     benefit_summary = build_benefit_summary(top_results)
-    hidden_gems = find_hidden_gems(top_results, profile)
+    hidden_gems = find_hidden_gems(scored, profile)
     action_plan, consolidated_docs = build_action_plan_and_docs(top_results)
 
     # 6) 비식별 탐색 수요 신호만 기록 (행정동 + 분야만 저장, 원문/PII 절대 미저장)
@@ -122,12 +152,23 @@ async def recommend_chat(payload: ChatRecommendRequest) -> ApiResponse:
         ]
         await db["demand_signals"].insert_many(signal_docs)
 
-    summary = (
+    fallback_summary = (
         f"전체 {total_evaluated}개 공공자원 중 자격·마감 기준으로 {len(excluded)}건을 제외하고, "
         f"신청 가능성이 높은 {len(top_results)}건을 맞춤 정리했습니다."
         if top_results
         else "현재 조건에 바로 일치하는 자원을 찾지 못했습니다. 조건을 넓혀 다시 확인해 보세요."
     )
+
+    briefing_items = [
+        {
+            "title": r.program.title,
+            "category": r.program.category,
+            "cost": r.program.cost.description,
+            "status": "신청 가능성 높음" if r.eligibility.status == "eligible" else "별도 확인 필요",
+        }
+        for r in top_results[:5]
+    ]
+    summary = await provider.write_briefing(masked_text, briefing_items, fallback_summary)
 
     response = ChatRecommendResponse(
         crisis=None,

@@ -31,18 +31,9 @@ export function Header() {
   return (
     <header className="sticky top-0 z-40 h-[68px] border-b border-[#e5e8eb] bg-white/95 backdrop-blur">
       <div className="mx-auto flex h-full max-w-[1400px] items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center gap-6">
-          <Link href="/" className="flex shrink-0 items-center gap-2.5">
-            <svg width="30" height="30" viewBox="0 0 28 28" fill="none" aria-hidden="true">
-              <rect width="28" height="28" rx="8" fill="#0D6E6E" />
-              <path
-                d="M14 6.5C10.41 6.5 7.5 9.41 7.5 13C7.5 17.65 14 22.5 14 22.5C14 22.5 20.5 17.65 20.5 13C20.5 9.41 17.59 6.5 14 6.5Z"
-                fill="white"
-                fillOpacity="0.95"
-              />
-              <circle cx="14" cy="12.8" r="2.6" fill="#0D6E6E" />
-            </svg>
-            <span className="text-[19px] font-extrabold tracking-tight text-[#191f28]">도란도란</span>
+        <div className="flex items-center gap-7">
+          <Link href="/" className="flex shrink-0 items-center">
+            <span className="text-[22px] font-black tracking-tight text-[#111827]">도란도란</span>
           </Link>
 
           <nav aria-label="주요 메뉴" className="hidden items-center gap-1.5 md:flex">

@@ -85,13 +85,14 @@ def evaluate_eligibility(
             labels = ", ".join(GROUP_LABELS.get(g, g) for g in sorted(overlap))
             matched.append(f"대상 유형 일치({labels})")
         elif user_groups:
-            # 예: 청년이 어르신 전용 사업을 볼 때
-            if "senior" in prog_groups and "youth" in user_groups and "senior" not in user_groups:
+            if "senior" in prog_groups and "senior" not in user_groups:
                 unmet.append("어르신(고령층) 전용 사업입니다.")
-            elif "family" in prog_groups and prog_groups == {"family"} and "family" not in user_groups:
-                verify_needed.append("가족·아동 대상 요건 확인 필요")
+            elif "family" in prog_groups and "family" not in user_groups and "low_income" not in user_groups:
+                unmet.append("가족·아동·다문화 대상 사업입니다.")
+            elif "low_income" in prog_groups and prog_groups == {"low_income"} and "low_income" not in user_groups:
+                verify_needed.append("저소득·취약계층 자격 확인 필요")
             else:
-                verify_needed.append("세부 지원 대상 해당 여부 확인 필요")
+                unmet.append("지원 대상 유형이 입력하신 조건과 다릅니다.")
         else:
             verify_needed.append("지원 대상 자격 확인 필요")
     elif "general" in prog_groups:

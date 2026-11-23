@@ -167,29 +167,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       try {
         const nearest = await fetchNearestRegion(lat, lng);
+        const actualName = nearest.actualRegion
+          ? `${nearest.actualRegion.sigungu} ${nearest.actualRegion.dong}`.trim()
+          : `${nearest.region.sigungu} ${nearest.region.dong}`;
+
         if (nearest.inServiceArea) {
           setSelectedAdmCdState(nearest.region.admCd);
           window.localStorage.setItem("doran_adm_cd", nearest.region.admCd);
-          const nextLoc: GpsLocation = {
-            lat,
-            lng,
-            label: `내 현재 위치 (${nearest.region.sigungu} ${nearest.region.dong} 인근)`,
-            source: "gps",
-          };
-          setUserCoords(nextLoc);
-          showToast({ message: `현재 위치(${nearest.region.dong} 인근)로 맞췄어요.` });
-          return nextLoc;
         }
         const nextLoc: GpsLocation = {
           lat,
           lng,
-          label: "내 현재 위치 (시범 권역 외 · 전국 자원 우선)",
+          label: `내 현재 위치 (${actualName})`,
           source: "gps",
         };
         setUserCoords(nextLoc);
-        showToast({
-          message: `현재 위치가 시범 권역(${nearest.region.sigungu}) 밖이에요. 동네 선택이나 지도 클릭으로 바꿀 수 있어요.`,
-        });
+        showToast({ message: `${actualName} 기준으로 주변 공공시설을 불러왔어요.` });
         return nextLoc;
       } catch {
         const nextLoc: GpsLocation = { lat, lng, label: "내 현재 위치", source: "gps" };

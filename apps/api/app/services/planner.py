@@ -35,16 +35,16 @@ def build_benefit_summary(recommendations: list[RecommendedProgram]) -> BenefitS
 
     parts: list[str] = []
     if monthly_total > 0:
-        parts.append(f"월 최대 {monthly_total // 10_000:,}만원 지원 가능")
+        parts.append(f"월 최대 {monthly_total // 10_000:,}만원")
     if annual_total > 0:
-        parts.append(f"연 최대 {annual_total // 10_000:,}만원 바우처·환급")
+        parts.append(f"연 최대 {annual_total // 10_000:,}만원")
     if free_count > 0:
-        parts.append(f"무료 시설·강좌 {free_count}곳")
+        parts.append(f"무료 이용 {free_count}곳")
 
     headline = (
         " · ".join(parts)
         if parts
-        else f"신청 가능한 공공자원 {len(recommendations)}건을 찾았습니다"
+        else f"신청 가능한 공공자원 {len(recommendations)}건"
     )
     return BenefitSummary(
         estimatedMonthlyKRW=monthly_total,
@@ -56,28 +56,38 @@ def build_benefit_summary(recommendations: list[RecommendedProgram]) -> BenefitS
 
 
 def find_hidden_gems(
-    recommendations: list[RecommendedProgram],
+    all_scored: list[RecommendedProgram],
     profile: UserProfile,
 ) -> list[HiddenGem]:
-    """사용자가 직접 언급하지 않았지만 자격 조건에 부합하는 '놓치기 쉬운 숨은 혜택'을 발굴합니다."""
-    gems: list[HiddenGem] = []
+    """메인 상위 3건과 겹치지 않으면서, 사용자가 직접 언급하지 않은 연계 혜택을 선별합니다."""
+    top_ids = {r.program.id for r in all_scored[:3]}
     kw_set = {k.lower() for k in profile.keywords}
     cat_set = set(profile.categories)
 
-    for rec in recommendations:
+    candidates = [r for r in all_scored if r.program.id not in top_ids]
+    gems: list[HiddenGem] = []
+
+    for rec in candidates:
         prog = rec.program
         haystack = f"{prog.title} {prog.summary} {' '.join(prog.tags)}".lower()
-        keyword_mentioned = any(kw in haystack for kw in kw_set) if kw_set else False
-        category_mentioned = prog.category in cat_set if cat_set else False
+        keyword_hits = sum(1 for kw in kw_set if kw in haystack)
+        other_category = bool(cat_set) and prog.category not in cat_set
 
-        # 직접 언급한 키워드가 없거나 다른 분야의 연계 혜택인 경우 선제 발굴
-        if not keyword_mentioned or (cat_set and not category_mentioned):
-            reason = (
-                f"직접 물어보지 않으셨지만, {rec.eligibility.matchedConditions[0]} 조건으로 함께 챙길 수 있는 혜택이에요."
-                if rec.eligibility.matchedConditions
-                else "현재 생활 조건과 연계해 추가로 신청할 수 있는 숨은 공공자원이에요."
-            )
+        if keyword_hits == 0 or other_category:
+            meaningful = [
+                c
+                for c in rec.eligibility.matchedConditions
+                if c not in ("현재 신청 가능 기간", "일반 주민 누구나 이용 가능")
+            ]
+            basis = meaningful[0] if meaningful else "현재 조건 기준"
+            if prog.cost.type == "subsidy":
+                reason = f"{prog.cost.description} · {basis} 조건으로 함께 신청할 수 있는 지원 제도입니다."
+            elif prog.region.isNationwide:
+                reason = f"{prog.schedule.hoursText} · {prog.cost.description} — 지역 제한 없이 바로 이용할 수 있습니다."
+            else:
+                reason = f"{prog.schedule.hoursText} · {prog.cost.description} — {basis}으로 인근에서 이용 가능합니다."
             gems.append(HiddenGem(program=prog, reason=reason))
+
         if len(gems) >= 3:
             break
 
@@ -87,7 +97,7 @@ def find_hidden_gems(
 def build_action_plan_and_docs(
     recommendations: list[RecommendedProgram],
 ) -> tuple[list[ActionPlanStep], list[str]]:
-    """추천 결과를 실행 순서(온라인 신청 → 현장 이용 → 서류 확인)와 중복 제거 통합 서류로 묶습니다."""
+    """추천 결과를 실행 순서와 중복 제거 통합 서류로 정리합니다."""
     online_subsidies = [
         r.program
         for r in recommendations
@@ -111,9 +121,9 @@ def build_action_plan_and_docs(
         names = ", ".join(p.title for p in online_subsidies[:2])
         steps.append(
             ActionPlanStep(
-                phase="1단계 · 오늘 온라인 신청",
-                title=f"지원금·온라인 혜택 {len(online_subsidies)}건 먼저 접수",
-                description=f"{names} 등은 예산·기간 마감이 있으므로 온라인으로 우선 신청해 두는 것이 유리합니다.",
+                phase="1단계",
+                title=f"마감·예산 있는 지원금 {len(online_subsidies)}건 온라인 먼저 접수",
+                description=f"{names}부터 신청해 두는 것이 가장 유리합니다.",
                 programIds=[p.id for p in online_subsidies[:3]],
             )
         )
@@ -121,9 +131,9 @@ def build_action_plan_and_docs(
         names = ", ".join(p.title for p in offline_visits[:2])
         steps.append(
             ActionPlanStep(
-                phase="2단계 · 생활권 방문·예약",
-                title=f"가까운 무료 시설·강좌 {len(offline_visits)}곳 이용",
-                description=f"{names} 등 이동 가능한 인근 시설을 사전 예약해 바로 이용해 보세요.",
+                phase="2단계",
+                title=f"가까운 무료 시설·강좌 {len(offline_visits)}곳 예약 및 이용",
+                description=f"{names} 등 인근 시설을 원하는 시간대에 예약해 보세요.",
                 programIds=[p.id for p in offline_visits[:3]],
             )
         )
@@ -131,9 +141,9 @@ def build_action_plan_and_docs(
         doc_preview = ", ".join(all_docs[:4]) if all_docs else "신분증"
         steps.append(
             ActionPlanStep(
-                phase="3단계 · 통합 서류 한 번에 준비",
-                title=f"공통 구비서류 {len(all_docs)}종으로 중복 준비 줄이기",
-                description=f"{doc_preview} 등을 한 번에 발급받으면 여러 지원사업을 동시에 신청할 수 있습니다.",
+                phase="3단계",
+                title=f"공통 서류 {len(all_docs)}종 한 번에 준비",
+                description=f"{doc_preview}을 묶어 준비하면 여러 사업을 중복 없이 신청할 수 있습니다.",
                 programIds=[p.id for p in verify_items[:3]],
             )
         )

@@ -8,6 +8,7 @@ from app.core.db import get_db
 from app.models.schemas import ApiResponse, CategoryType, CostType, ProgramOut
 from app.services.eligibility import is_program_open
 from app.services.gap import serialize_program
+from app.services.kakao_places import fetch_nearby_public_places
 
 router = APIRouter(prefix="/api/programs", tags=["programs"])
 KST = timezone(timedelta(hours=9))
@@ -22,6 +23,7 @@ async def list_programs(
     admCd: str | None = None,
     q: str | None = None,
     includeClosed: bool = False,
+    includeOnline: bool = False,
     lat: float | None = None,
     lng: float | None = None,
     radiusKm: float = Query(default=5.0, ge=0.5, le=50.0),
@@ -82,6 +84,44 @@ async def list_programs(
             if dist_m is not None:
                 prog.distanceKm = round(float(dist_m) / 1000.0, 2)
             programs.append(prog)
+
+        # 실시간 카카오 공공시설 보강 (전국 어디서든 내 위치 주변 공공시설 표시)
+        live_places = await fetch_nearby_public_places(
+            lat=lat,
+            lng=lng,
+            categories=[category] if category else None,
+            keywords=[q.strip()] if q and q.strip() else None,
+            radius_m=int(radiusKm * 1000),
+            limit=8,
+            db=db,
+        )
+        existing_titles = {p.provider for p in programs}
+        for place in live_places:
+            if place.provider not in existing_titles:
+                programs.append(place)
+                existing_titles.add(place.provider)
+        programs.sort(key=lambda p: p.distanceKm if p.distanceKm is not None else 999.0)
+
+        if includeOnline:
+            geo_cap = max(limit - 6, 8)
+            programs = programs[:geo_cap]
+            online_filter = (
+                {
+                    "$and": [
+                        match_filter,
+                        {"$or": [{"location": {"$exists": False}}, {"location": None}]},
+                    ]
+                }
+                if match_filter
+                else {"$or": [{"location": {"$exists": False}}, {"location": None}]}
+            )
+            seen_ids = {p.id for p in programs}
+            online_cursor = db["programs"].find(online_filter).limit(6)
+            async for doc in online_cursor:
+                prog = serialize_program(doc)
+                if prog.id not in seen_ids:
+                    programs.append(prog)
+                    seen_ids.add(prog.id)
     else:
         cursor = db["programs"].find(match_filter).limit(limit * 2)
         async for doc in cursor:

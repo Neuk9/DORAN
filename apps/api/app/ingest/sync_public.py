@@ -6,6 +6,7 @@ DATA_GO_KR_KEY가 설정되지 않은 환경에서는 안전하게 안내 후 �
 
 import asyncio
 from datetime import UTC, datetime
+from urllib.parse import unquote
 from xml.etree import ElementTree as ET
 
 import httpx
@@ -50,7 +51,7 @@ async def sync_bokjiro_local(sido: str = "서울특별시", sigungu: str = "구�
             resp = await client.get(
                 BOKJIRO_LOCAL_URL,
                 params={
-                    "serviceKey": settings.data_go_kr_key,
+                    "serviceKey": unquote(settings.data_go_kr_key.strip()),
                     "pageNo": 1,
                     "numOfRows": num_rows,
                     "ctpvNm": sido,

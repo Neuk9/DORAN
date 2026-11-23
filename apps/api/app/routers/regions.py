@@ -3,6 +3,7 @@ from fastapi import APIRouter, HTTPException, Query
 from app.core.db import get_db
 from app.models.schemas import ApiResponse, RegionStatOut
 from app.services.gap import build_region_report
+from app.services.kakao_places import reverse_geocode
 
 router = APIRouter(prefix="/api/regions", tags=["regions"])
 
@@ -49,9 +50,11 @@ async def get_nearest_region(
     nearest_doc.pop("_id", None)
     region = RegionStatOut.model_validate(nearest_doc)
     in_service_area = dist_km <= 25.0
+    actual_region = await reverse_geocode(lat, lng)
     return ApiResponse(
         data={
             "region": region.model_dump(mode="json"),
+            "actualRegion": actual_region,
             "distanceKm": dist_km,
             "inServiceArea": in_service_area,
         },

@@ -35,8 +35,6 @@ import { fetchPrograms, postChatRecommend } from "@/lib/api";
 import {
   CATEGORY_LABELS,
   COST_LABELS,
-  GROUP_LABELS,
-  TIME_LABELS,
   formatDeadlineBadge,
   formatDistanceWithWalk,
   type CategoryType,
@@ -173,10 +171,35 @@ export default function HomeAISearchPage() {
   }, []);
 
   useEffect(() => {
-    fetchPrograms({ admCd: selectedAdmCd, limit: 16 })
-      .then(setBasePrograms)
-      .catch(() => setBasePrograms([]));
-  }, [selectedAdmCd]);
+    if (userCoords) {
+      fetchPrograms({
+        lat: userCoords.lat,
+        lng: userCoords.lng,
+        radiusKm: 5,
+        includeOnline: true,
+        limit: 20,
+      })
+        .then(setBasePrograms)
+        .catch(() => setBasePrograms([]));
+      return;
+    }
+    const region = regions.find((r) => r.admCd === selectedAdmCd);
+    if (region) {
+      fetchPrograms({
+        lat: region.center.coordinates[1],
+        lng: region.center.coordinates[0],
+        radiusKm: 5,
+        includeOnline: true,
+        limit: 20,
+      })
+        .then(setBasePrograms)
+        .catch(() => setBasePrograms([]));
+    } else {
+      fetchPrograms({ admCd: selectedAdmCd, limit: 20 })
+        .then(setBasePrograms)
+        .catch(() => setBasePrograms([]));
+    }
+  }, [selectedAdmCd, userCoords, regions]);
 
   const anchor: MapAnchor = useMemo(() => {
     if (userCoords) {
@@ -692,163 +715,105 @@ export default function HomeAISearchPage() {
       ) : null}
 
       {/* ============================================================
-          1.5. 도란도란 맞춤 혜택 브리핑 (예상 혜택 합산 + 숨은 혜택 + 3단계 플랜)
+          1.5. 도란도란 맞춤 혜택 브리핑 (단일 정갈한 요약 + 탭)
          ============================================================ */}
       {hasSearched && aiResult && !aiResult.crisis && !loading ? (
-        <div className="space-y-4">
-          <BenefitPlanPanel
-            benefitSummary={aiResult.benefitSummary}
-            hiddenGems={aiResult.hiddenGems}
-            actionPlan={aiResult.actionPlan}
-            consolidatedDocs={aiResult.consolidatedDocs}
-            onSelectProgram={(id) => {
-              setDrawerProgramId(id);
-              const target = allPrograms.find((p) => p.id === id);
-              if (target?.location) {
-                setMapMode("resources");
-                setFocusedMapProgramId(id);
-              }
-            }}
-          />
-
-          {/* 1장 원스톱 안내지 출력 바 (주민 모드에서도 원하면 바로 인쇄 가능) */}
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#e5e8eb] bg-white px-5 py-3.5 text-sm shadow-xs">
-            <div className="flex items-center gap-2 text-[#333d4b]">
-              <Printer className="h-4 w-4 text-[#0d6e6e]" />
-              <span>
-                <strong className="text-[#191f28]">가족·주민센터 상담용 1장 요약지</strong>로 통합
-                구비서류와 신청처를 한 번에 출력할 수 있어요.
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setGuideOpen(true)}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-[#191f28] px-4 py-2 text-xs font-bold text-white hover:bg-[#333d4b]"
-            >
-              <Printer className="h-3.5 w-3.5" />
-              <span>1장 안내지 미리보기 / 인쇄</span>
-            </button>
-          </div>
-        </div>
+        <BenefitPlanPanel
+          summaryMessage={aiResult.summaryMessage}
+          benefitSummary={aiResult.benefitSummary}
+          hiddenGems={aiResult.hiddenGems}
+          actionPlan={aiResult.actionPlan}
+          consolidatedDocs={aiResult.consolidatedDocs}
+          onOpenGuide={() => setGuideOpen(true)}
+          onSelectProgram={(id) => {
+            setDrawerProgramId(id);
+            const target = allPrograms.find((p) => p.id === id);
+            if (target?.location) {
+              setMapMode("resources");
+              setFocusedMapProgramId(id);
+            }
+          }}
+        />
       ) : null}
 
       {/* ============================================================
           2. 메인 콘텐츠: 좌측 넓은 추천 리스트(60%) + 우측 Sticky 지도(40%)
          ============================================================ */}
       {!aiResult?.crisis?.detected ? (
-        <section className="grid items-start gap-7 lg:grid-cols-[minmax(0,1.35fr)_minmax(380px,1fr)]">
+        <section className="grid items-start gap-8 lg:grid-cols-[minmax(0,1.3fr)_minmax(400px,1fr)]">
           <div className="space-y-5">
+            {/* 검색 결과 시: 중복 큰 박스 없이 깔끔한 1줄 조건 조정 바 */}
             {hasSearched && editableProfile ? (
-              <div className="space-y-4 rounded-3xl border border-[#e5e8eb] bg-white p-6 shadow-xs">
-                <div>
-                  <p className="text-lg font-extrabold text-[#191f28]">
-                    <span className="text-[#0d6e6e]">{anchor.label}</span> 기준으로 신청 가능성이 높은 공공자원{" "}
-                    <span className="text-[#0d6e6e]">{recommendations.length}건</span>을 찾았습니다.
-                  </p>
-                  <p className="mt-1 text-base text-[#4e5968]">
-                    연령대나 분야를 눌러 조건별 자격 결과를 바로 비교해 볼 수 있어요.
-                  </p>
-                </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {AGE_PRESETS.map((preset) => {
+                  const active =
+                    editableProfile.age != null && Math.abs(editableProfile.age - preset.age) <= 5;
+                  return (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={() => applyAgePreset(preset.age, preset.groups)}
+                      className={`rounded-xl px-4 py-2 text-sm font-bold transition-colors ${
+                        active
+                          ? "bg-[#0d6e6e] text-white"
+                          : "bg-white text-[#374151] ring-1 ring-[#dfe4ea] hover:bg-[#f3f5f8]"
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  );
+                })}
 
-                {/* 인라인 연령대 시뮬레이션 + 분야/무료 필터 */}
-                <div className="flex flex-wrap items-center gap-2.5">
-                  <span className="text-sm font-bold text-[#8b95a1]">연령대</span>
-                  {AGE_PRESETS.map((preset) => {
-                    const active =
-                      editableProfile.age != null && Math.abs(editableProfile.age - preset.age) <= 5;
-                    return (
-                      <button
-                        key={preset.label}
-                        type="button"
-                        onClick={() => applyAgePreset(preset.age, preset.groups)}
-                        className={`rounded-xl px-4 py-2 text-sm font-bold transition-colors ${
-                          active
-                            ? "bg-[#0d6e6e] text-white"
-                            : "bg-[#f2f4f6] text-[#333d4b] hover:bg-[#e5e8eb]"
-                        }`}
-                      >
-                        {preset.label}
-                      </button>
-                    );
-                  })}
+                <span className="mx-1 h-5 w-px bg-[#dfe4ea]" aria-hidden="true" />
 
-                  <span className="mx-1 h-5 w-px bg-[#e5e8eb]" aria-hidden="true" />
+                {(["welfare", "education", "culture"] as CategoryType[]).map((cat) => {
+                  const active = editableProfile.categories.includes(cat);
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => toggleCategoryChip(cat)}
+                      className={`rounded-xl px-4 py-2 text-sm font-bold transition-colors ${
+                        active
+                          ? "bg-[#111827] text-white"
+                          : "bg-white text-[#374151] ring-1 ring-[#dfe4ea] hover:bg-[#f3f5f8]"
+                      }`}
+                    >
+                      {CATEGORY_LABELS[cat]}
+                    </button>
+                  );
+                })}
 
-                  {(["welfare", "education", "culture"] as CategoryType[]).map((cat) => {
-                    const active = editableProfile.categories.includes(cat);
-                    return (
-                      <button
-                        key={cat}
-                        type="button"
-                        onClick={() => toggleCategoryChip(cat)}
-                        className={`rounded-xl px-4 py-2 text-sm font-bold transition-colors ${
-                          active
-                            ? "bg-[#191f28] text-white"
-                            : "border border-[#d1d6db] bg-white text-[#4e5968] hover:border-[#191f28]"
-                        }`}
-                      >
-                        {CATEGORY_LABELS[cat]}
-                      </button>
-                    );
-                  })}
-                  <button
-                    type="button"
-                    onClick={toggleFreeChip}
-                    className={`rounded-xl px-4 py-2 text-sm font-bold transition-colors ${
-                      editableProfile.preferFree
-                        ? "bg-[#0d6e6e] text-white"
-                        : "border border-[#d1d6db] bg-white text-[#4e5968]"
-                    }`}
-                  >
-                    무료·지원금 우선
-                  </button>
-                </div>
-
-                {(editableProfile.targetGroups.length > 0 || editableProfile.timePreferences.length > 0) && (
-                  <div className="flex flex-wrap items-center gap-2 border-t border-[#f2f4f6] pt-3.5 text-sm text-[#6b7684]">
-                    <span className="font-semibold text-[#8b95a1]">인식된 조건:</span>
-                    {editableProfile.age ? (
-                      <span className="rounded-lg bg-[#f6f7f9] px-2.5 py-1 font-semibold text-[#333d4b]">
-                        만 {editableProfile.age}세
-                      </span>
-                    ) : null}
-                    {editableProfile.targetGroups.map((g) => (
-                      <span
-                        key={g}
-                        className="rounded-lg bg-[#f6f7f9] px-2.5 py-1 font-semibold text-[#333d4b]"
-                      >
-                        {GROUP_LABELS[g] || g}
-                      </span>
-                    ))}
-                    {editableProfile.timePreferences.map((t) => (
-                      <span
-                        key={t}
-                        className="rounded-lg bg-[#f6f7f9] px-2.5 py-1 font-semibold text-[#333d4b]"
-                      >
-                        {TIME_LABELS[t] || t}
-                      </span>
-                    ))}
-                  </div>
-                )}
+                <button
+                  type="button"
+                  onClick={toggleFreeChip}
+                  className={`rounded-xl px-4 py-2 text-sm font-bold transition-colors ${
+                    editableProfile.preferFree
+                      ? "bg-[#0d6e6e] text-white"
+                      : "bg-white text-[#374151] ring-1 ring-[#dfe4ea] hover:bg-[#f3f5f8]"
+                  }`}
+                >
+                  무료·지원금만
+                </button>
               </div>
             ) : (
               <div className="flex flex-wrap items-end justify-between gap-3">
                 <div>
-                  <h2 className="text-2xl font-extrabold text-[#191f28]">
-                    {anchor.label} 주변 주요 공공자원
+                  <h2 className="text-2xl font-extrabold text-[#111827]">
+                    {anchor.label} 주변 공공자원
                   </h2>
-                  <p className="mt-1 text-sm text-[#4e5968]">
-                    위 검색창에 내 상황을 말하면 자격·거리·시간에 맞는 자원만 추려 근거와 함께 보여드려요.
+                  <p className="mt-1 text-base text-[#374151]">
+                    위 검색창에 내 상황을 말하면 자격에 맞는 혜택만 골라 정리해 드려요.
                   </p>
                 </div>
                 <Link href="/explore" className="text-sm font-bold text-[#0d6e6e] hover:underline">
-                  전체 조건 탐색 →
+                  전체 탐색 →
                 </Link>
               </div>
             )}
 
             {/* 탭 + 정렬 컨트롤 */}
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e5e8eb] pb-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#dfe4ea] pb-3.5">
               <div className="flex flex-wrap gap-2">
                 {[
                   { key: "all", label: `전체 ${allPrograms.length}` },
@@ -859,10 +824,10 @@ export default function HomeAISearchPage() {
                     key={tab.key}
                     type="button"
                     onClick={() => setResultTab(tab.key as "all" | "map" | "online")}
-                    className={`rounded-xl px-3.5 py-2 text-sm font-bold transition-colors ${
+                    className={`rounded-xl px-4 py-2 text-sm font-bold transition-colors ${
                       resultTab === tab.key
-                        ? "bg-[#191f28] text-white"
-                        : "bg-white text-[#4e5968] ring-1 ring-[#e5e8eb] hover:bg-[#f6f7f9]"
+                        ? "bg-[#111827] text-white"
+                        : "bg-white text-[#374151] ring-1 ring-[#dfe4ea] hover:bg-[#f3f5f8]"
                     }`}
                   >
                     {tab.label}
@@ -870,7 +835,7 @@ export default function HomeAISearchPage() {
                 ))}
               </div>
 
-              <div className="flex items-center gap-1.5 text-xs font-semibold">
+              <div className="flex items-center gap-1.5 text-sm font-semibold">
                 {(
                   [
                     { key: "relevance", label: "맞춤순" },
@@ -882,10 +847,10 @@ export default function HomeAISearchPage() {
                     key={s.key}
                     type="button"
                     onClick={() => setSortBy(s.key)}
-                    className={`rounded-lg px-2.5 py-1.5 transition-colors ${
+                    className={`rounded-lg px-3 py-1.5 transition-colors ${
                       sortBy === s.key
                         ? "bg-[#edf7f7] font-bold text-[#0d6e6e]"
-                        : "text-[#8b95a1] hover:text-[#191f28]"
+                        : "text-[#4b5563] hover:text-[#111827]"
                     }`}
                   >
                     {s.label}
@@ -896,18 +861,18 @@ export default function HomeAISearchPage() {
 
             {loading ? (
               <div className="space-y-4">
-                <p className="text-sm font-semibold text-[#0d6e6e]">
-                  자격요건과 {anchor.label} 기준 거리를 대조하고 있어요…
+                <p className="text-base font-bold text-[#0d6e6e]">
+                  자격요건과 {anchor.label} 기준 거리를 확인하고 있어요…
                 </p>
                 {[1, 2, 3].map((n) => (
                   <div
                     key={n}
-                    className="h-48 animate-pulse rounded-2xl border border-[#e5e8eb] bg-white p-6"
+                    className="h-44 animate-pulse rounded-2xl border border-[#dfe4ea] bg-white p-6"
                   >
-                    <div className="h-4 w-32 rounded bg-[#f2f4f6]" />
-                    <div className="mt-3 h-6 w-3/4 rounded bg-[#e5e8eb]" />
-                    <div className="mt-2 h-4 w-full rounded bg-[#f2f4f6]" />
-                    <div className="mt-4 h-14 w-full rounded-xl bg-[#f6f7f9]" />
+                    <div className="h-4 w-32 rounded bg-[#eef1f5]" />
+                    <div className="mt-3 h-7 w-3/4 rounded bg-[#dfe4ea]" />
+                    <div className="mt-3 h-5 w-1/2 rounded bg-[#eef1f5]" />
+                    <div className="mt-4 h-4 w-2/3 rounded bg-[#f4f6f9]" />
                   </div>
                 ))}
               </div>
@@ -932,20 +897,35 @@ export default function HomeAISearchPage() {
                           setFocusedMapProgramId(program.id);
                         }
                       }}
-                      className={`cursor-pointer rounded-2xl border bg-white p-5 transition-all sm:p-6 ${
+                      className={`cursor-pointer rounded-2xl border bg-white p-6 transition-all ${
                         isFocused
-                          ? "border-[#0d6e6e] ring-2 ring-[#0d6e6e]/15"
-                          : "border-[#e5e8eb] hover:border-[#b0b8c1] hover:shadow-sm"
+                          ? "border-[#0d6e6e] shadow-md ring-2 ring-[#0d6e6e]/15"
+                          : "border-[#dfe4ea] shadow-2xs hover:border-[#9ca3af] hover:shadow-sm"
                       }`}
                     >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-[#4e5968]">
-                          <span className={`h-2.5 w-2.5 rounded-full ${CATEGORY_DOT[program.category]}`} />
-                          <span className="text-[#191f28]">{CATEGORY_LABELS[program.category]}</span>
-                          <span className="text-[#d1d6db]">·</span>
-                          <span>{COST_LABELS[program.cost.type]}</span>
-                          <span className="text-[#d1d6db]">·</span>
-                          <span className="font-bold text-[#0d6e6e]">{formatDeadlineBadge(program)}</span>
+                      {/* 1단: 자격 상태 + 분야·마감 + 액션 */}
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex flex-wrap items-center gap-2.5 text-sm font-bold">
+                          {rec ? (
+                            rec.eligibility.status === "eligible" ? (
+                              <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-100 px-2.5 py-1 text-emerald-900">
+                                <Check className="h-4 w-4 text-emerald-700" />
+                                신청 가능
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 rounded-lg bg-amber-100 px-2.5 py-1 text-amber-950">
+                                <ShieldAlert className="h-4 w-4 text-amber-700" />
+                                자격 확인 필요
+                              </span>
+                            )
+                          ) : null}
+
+                          <span className="inline-flex items-center gap-1.5 text-[#374151]">
+                            <span className={`h-2.5 w-2.5 rounded-full ${CATEGORY_DOT[program.category]}`} />
+                            {CATEGORY_LABELS[program.category]}
+                          </span>
+                          <span className="text-[#cbd5e1]">·</span>
+                          <span className="text-[#0d6e6e]">{formatDeadlineBadge(program)}</span>
                         </div>
 
                         <div className="flex shrink-0 items-center gap-1.5">
@@ -956,13 +936,13 @@ export default function HomeAISearchPage() {
                               toggleCompare(program);
                             }}
                             aria-label={isCompared ? "비교에서 제거" : "비교함에 담기"}
-                            className={`inline-flex items-center gap-1 rounded-xl border px-2.5 py-1.5 text-xs font-bold transition-colors ${
+                            className={`inline-flex items-center gap-1 rounded-xl border px-3 py-1.5 text-sm font-bold transition-colors ${
                               isCompared
-                                ? "border-[#191f28] bg-[#191f28] text-white"
-                                : "border-[#e5e8eb] text-[#4e5968] hover:bg-[#f6f7f9]"
+                                ? "border-[#111827] bg-[#111827] text-white"
+                                : "border-[#dfe4ea] text-[#374151] hover:bg-[#f3f5f8]"
                             }`}
                           >
-                            <Scale className="h-3.5 w-3.5" />
+                            <Scale className="h-4 w-4" />
                             <span>{isCompared ? "비교 중" : "비교"}</span>
                           </button>
 
@@ -973,51 +953,39 @@ export default function HomeAISearchPage() {
                               void toggleSave(program.id);
                             }}
                             aria-label={isSaved ? "저장 취소" : "체크리스트에 저장"}
-                            className={`inline-flex items-center gap-1 rounded-xl border px-2.5 py-1.5 text-xs font-bold transition-colors ${
+                            className={`inline-flex items-center gap-1 rounded-xl border px-3 py-1.5 text-sm font-bold transition-colors ${
                               isSaved
                                 ? "border-[#0d6e6e] bg-[#edf7f7] text-[#0d6e6e]"
-                                : "border-[#e5e8eb] text-[#4e5968] hover:bg-[#f6f7f9]"
+                                : "border-[#dfe4ea] text-[#374151] hover:bg-[#f3f5f8]"
                             }`}
                           >
-                            <Bookmark className={`h-3.5 w-3.5 ${isSaved ? "fill-[#0d6e6e]" : ""}`} />
+                            <Bookmark className={`h-4 w-4 ${isSaved ? "fill-[#0d6e6e]" : ""}`} />
                             <span>{isSaved ? "저장됨" : "저장"}</span>
                           </button>
                         </div>
                       </div>
 
-                      <h3 className="mt-3 text-xl font-extrabold leading-snug text-[#191f28] sm:text-[22px]">
+                      {/* 2단: 선명한 제목 */}
+                      <h3 className="mt-3 text-[21px] font-extrabold leading-snug text-[#111827]">
                         {program.title}
                       </h3>
-                      <p className="mt-2 text-base leading-relaxed text-[#4e5968]">{program.summary}</p>
 
-                      {rec ? (
-                        <div
-                          className={`mt-4 rounded-2xl px-5 py-4 text-[15px] ${
-                            rec.eligibility.status === "eligible"
-                              ? "bg-emerald-50/80 text-emerald-950"
-                              : "bg-amber-50/80 text-amber-950"
-                          }`}
-                        >
-                          <div className="flex items-center gap-2 font-bold">
-                            {rec.eligibility.status === "eligible" ? (
-                              <>
-                                <Check className="h-4 w-4 shrink-0 text-emerald-600" />
-                                <span>입력 조건 부합 — 신청 가능성 높음</span>
-                              </>
-                            ) : (
-                              <>
-                                <ShieldAlert className="h-4 w-4 shrink-0 text-amber-600" />
-                                <span>별도 확인 필요 — {rec.eligibility.verificationNeeded[0]}</span>
-                              </>
-                            )}
-                          </div>
-                          <p className="mt-1.5 text-sm leading-relaxed text-[#333d4b]">{rec.explanation}</p>
-                        </div>
-                      ) : null}
+                      {/* 3단: 핵심 혜택 1줄 강조 */}
+                      <p className="mt-2 text-base font-bold text-[#0d6e6e]">
+                        {COST_LABELS[program.cost.type]} · {program.cost.description}
+                      </p>
 
-                      <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-[#f2f4f6] pt-3.5 text-sm text-[#6b7684]">
+                      {/* 핵심 조건/설명 1줄 */}
+                      <p className="mt-1.5 line-clamp-1 text-base text-[#374151]">
+                        {rec && rec.eligibility.status === "verify_needed" && rec.eligibility.verificationNeeded[0]
+                          ? `확인 필요: ${rec.eligibility.verificationNeeded[0]}`
+                          : program.summary}
+                      </p>
+
+                      {/* 4단: 위치 · 거리 · 운영시간 */}
+                      <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-[#eef1f5] pt-3.5 text-sm font-medium text-[#374151]">
                         <div className="flex flex-wrap items-center gap-2.5">
-                          <span className="inline-flex items-center gap-1.5 font-semibold text-[#333d4b]">
+                          <span className="inline-flex items-center gap-1.5 font-bold text-[#111827]">
                             {hasLocation ? (
                               <>
                                 <MapPin className="h-4 w-4 text-[#0d6e6e]" />
@@ -1031,20 +999,20 @@ export default function HomeAISearchPage() {
                             )}
                           </span>
                           {distanceHint ? (
-                            <span className="rounded-lg bg-[#edf7f7] px-2 py-0.5 text-xs font-bold text-[#0d6e6e]">
+                            <span className="rounded-lg bg-[#edf7f7] px-2.5 py-0.5 text-sm font-bold text-[#0d6e6e]">
                               {distanceHint}
                             </span>
                           ) : null}
                         </div>
 
-                        <span className="font-bold text-[#0d6e6e]">자세히 보기 →</span>
+                        <span className="font-bold text-[#0d6e6e]">상세 보기 →</span>
                       </div>
                     </article>
                   );
                 })}
 
                 {displayedItems.length === 0 ? (
-                  <div className="rounded-2xl border border-[#e5e8eb] bg-white p-12 text-center text-base text-[#6b7684]">
+                  <div className="rounded-2xl border border-[#dfe4ea] bg-white p-12 text-center text-base text-[#4b5563]">
                     선택한 분류에 해당하는 공공자원이 없습니다.
                   </div>
                 ) : null}

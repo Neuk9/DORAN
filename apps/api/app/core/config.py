@@ -16,7 +16,8 @@ class Settings(BaseSettings):
     mongodb_db: str = "doran"
     auto_seed_if_empty: bool = True
 
-    llm_provider: str = "mock"  # mock | openai | gemini
+    llm_provider: str = "mock"  # mock | openai | openai-compatible | gemini
+    llm_base_url: str = "https://api.openai.com/v1"
     llm_api_key: str = ""
     llm_model: str = "gpt-4o-mini"
 
