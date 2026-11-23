@@ -2,7 +2,8 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-ROOT_ENV = Path(__file__).resolve().parents[4] / ".env"
+_PARENTS = Path(__file__).resolve().parents
+ROOT_ENV = (_PARENTS[4] if len(_PARENTS) > 4 else _PARENTS[-1]) / ".env"
 
 
 class Settings(BaseSettings):
