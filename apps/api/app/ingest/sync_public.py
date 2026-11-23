@@ -993,7 +993,8 @@ async def sync_kakao_community_facilities_for_dong(
                     },
                     "applyInfo": {
                         "method": "방문 또는 전화 문의",
-                        "url": item.get("place_url") or None,
+                        # place_url은 카카오맵 장소 링크이므로 신청 URL로 쓰지 않는다.
+                        "url": None,
                         "phone": item.get("phone") or None,
                     },
                     "source": {"name": "카카오 로컬 장소 API(실시간)", "syncedAt": now},

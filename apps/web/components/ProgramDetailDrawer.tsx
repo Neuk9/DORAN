@@ -30,6 +30,7 @@ import {
   type Program,
   type RecommendedProgram,
 } from "@/lib/types";
+import { isMapLink } from "@/lib/url";
 
 interface ProgramDetailDrawerProps {
   program: Program;
@@ -75,6 +76,8 @@ export function ProgramDetailDrawer({ program, recommendation, onClose }: Progra
     program.location?.coordinates?.length === 2
       ? `https://map.kakao.com/link/to/${encodeURIComponent(program.provider)},${program.location.coordinates[1]},${program.location.coordinates[0]}`
       : null;
+  const applyUrl =
+    program.applyInfo.url && !isMapLink(program.applyInfo.url) ? program.applyInfo.url : null;
 
   const handleShare = async () => {
     const url = `${window.location.origin}/programs/${program.id}`;
@@ -357,9 +360,9 @@ export function ProgramDetailDrawer({ program, recommendation, onClose }: Progra
 
         <div className="space-y-2.5 border-t border-line bg-white px-6 py-4">
           <div className="flex gap-2.5">
-            {program.applyInfo.url ? (
+            {applyUrl ? (
               <a
-                href={program.applyInfo.url}
+                href={applyUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-brand px-5 py-3 text-[15px] font-bold text-white transition-colors hover:bg-brand-strong"

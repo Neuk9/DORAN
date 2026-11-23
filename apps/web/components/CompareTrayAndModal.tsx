@@ -20,6 +20,7 @@ import {
   formatDeadlineBadge,
   formatDistanceWithWalk,
 } from "@/lib/types";
+import { isMapLink } from "@/lib/url";
 
 function formatAgeRange(program: { eligibility: { minAge?: number | null; maxAge?: number | null } }) {
   const { minAge, maxAge } = program.eligibility;
@@ -124,6 +125,8 @@ export function CompareTrayAndModal() {
               <div className={`grid gap-4 ${gridClass}`}>
                 {compareList.map((p) => {
                   const distance = formatDistanceWithWalk(p.distanceKm);
+                  const applyUrl =
+                    p.applyInfo.url && !isMapLink(p.applyInfo.url) ? p.applyInfo.url : null;
                   const targetGroups = p.eligibility.targetGroups
                     .map((g) => GROUP_LABELS[g] || g)
                     .join(", ");
@@ -259,9 +262,9 @@ export function CompareTrayAndModal() {
                           {p.applyInfo.method}
                         </p>
 
-                        {p.applyInfo.url ? (
+                        {applyUrl ? (
                           <a
-                            href={p.applyInfo.url}
+                            href={applyUrl}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-brand px-3.5 py-2.5 text-xs font-bold text-white hover:bg-brand-strong"

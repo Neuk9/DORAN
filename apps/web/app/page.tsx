@@ -35,6 +35,7 @@ import { ProgramDetailDrawer } from "@/components/ProgramDetailDrawer";
 import { RouteTransitionLink } from "@/components/RouteTransitionLink";
 import { ScrollSnapToSection } from "@/components/ScrollSnapToSection";
 import { fetchPrograms, postChatRecommend } from "@/lib/api";
+import { isMapLink } from "@/lib/url";
 import {
   CATEGORY_LABELS,
   COST_LABELS,
@@ -1102,6 +1103,10 @@ export default function HomeAISearchPage() {
                   const distanceHint = formatDistanceWithWalk(
                     program.distanceKm,
                   );
+                  const applyUrl =
+                    program.applyInfo.url && !isMapLink(program.applyInfo.url)
+                      ? program.applyInfo.url
+                      : null;
 
                   return (
                     <article
@@ -1237,9 +1242,9 @@ export default function HomeAISearchPage() {
                         </div>
 
                         <div className="flex flex-wrap items-center gap-1.5">
-                          {program.applyInfo.url ? (
+                          {applyUrl ? (
                             <a
-                              href={program.applyInfo.url}
+                              href={applyUrl}
                               target="_blank"
                               rel="noopener noreferrer"
                               onClick={(e) => e.stopPropagation()}

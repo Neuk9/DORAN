@@ -10,6 +10,7 @@ import {
   type HiddenGem,
   type RecommendedProgram,
 } from "@/lib/types";
+import { isMapLink } from "@/lib/url";
 
 interface BenefitPlanPanelProps {
   summaryMessage?: string;
@@ -109,6 +110,10 @@ export function BenefitPlanPanel({
                   program.location?.coordinates?.length === 2
                     ? `https://map.kakao.com/link/to/${encodeURIComponent(program.title)},${program.location.coordinates[1]},${program.location.coordinates[0]}`
                     : null;
+                const applyUrl =
+                  program.applyInfo.url && !isMapLink(program.applyInfo.url)
+                    ? program.applyInfo.url
+                    : null;
 
                 return (
                   <div
@@ -130,9 +135,9 @@ export function BenefitPlanPanel({
                     </button>
 
                     <div className="flex shrink-0 flex-wrap items-center gap-1.5">
-                      {program.applyInfo.url ? (
+                      {applyUrl ? (
                         <a
-                          href={program.applyInfo.url}
+                          href={applyUrl}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-1 rounded-lg bg-brand px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-brand-strong"
@@ -166,7 +171,7 @@ export function BenefitPlanPanel({
                         </button>
                       ) : null}
 
-                      {!program.applyInfo.url && program.applyInfo.phone ? (
+                      {!applyUrl && program.applyInfo.phone ? (
                         <a
                           href={`tel:${program.applyInfo.phone}`}
                           className="inline-flex items-center gap-1 rounded-lg bg-ink px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-brand"

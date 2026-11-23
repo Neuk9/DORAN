@@ -24,6 +24,7 @@ import {
   formatDeadlineBadge,
   type Program,
 } from "@/lib/types";
+import { isMapLink } from "@/lib/url";
 
 export default function ProgramDetailPage() {
   const params = useParams<{ id: string }>();
@@ -62,6 +63,8 @@ export default function ProgramDetailPage() {
     program.location?.coordinates?.length === 2
       ? `https://map.kakao.com/link/to/${encodeURIComponent(program.provider)},${program.location.coordinates[1]},${program.location.coordinates[0]}`
       : null;
+  const applyUrl =
+    program.applyInfo.url && !isMapLink(program.applyInfo.url) ? program.applyInfo.url : null;
 
   return (
     <div className="space-y-6">
@@ -193,9 +196,9 @@ export default function ProgramDetailPage() {
           </div>
 
           <div className="space-y-2.5 pt-1">
-            {program.applyInfo.url ? (
+            {applyUrl ? (
               <a
-                href={program.applyInfo.url}
+                href={applyUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-ink px-5 py-3.5 text-sm font-bold text-white transition-colors hover:bg-brand"
