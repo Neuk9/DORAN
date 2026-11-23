@@ -12,3 +12,4 @@ docs/
 eval/report.json
 *.log
 *.tsbuildinfo
+.DS_Store
