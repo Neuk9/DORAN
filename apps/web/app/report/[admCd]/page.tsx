@@ -4,12 +4,12 @@ import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { AlertCircle, Building2, Lightbulb, Users } from "lucide-react";
+import { AlertCircle, Building2, Database, Lightbulb, RefreshCw, Users } from "lucide-react";
 import { useApp } from "@/components/AppContext";
 import { FacilityRecommendations } from "@/components/FacilityRecommendations";
 import { GapPolicySimulator, type SimulatorCounts } from "@/components/GapPolicySimulator";
 import { ProgramCard } from "@/components/ProgramCard";
-import { fetchRegionReport } from "@/lib/api";
+import { fetchRegionReport, triggerPublicSync } from "@/lib/api";
 import { CATEGORY_LABELS, type CategoryType, type RegionReport } from "@/lib/types";
 
 const InteractiveAIMap = dynamic(() => import("@/components/InteractiveAIMap"), {
@@ -28,22 +28,45 @@ export default function RegionReportPage() {
   const [report, setReport] = useState<RegionReport | null>(null);
   const [simCounts, setSimCounts] = useState<SimulatorCounts>({ welfare: 0, education: 0, culture: 0 });
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const admCd = params?.admCd || "1153054000";
 
-  useEffect(() => {
+  const loadReport = async (code: string) => {
     setLoading(true);
     setError(null);
     setSimCounts({ welfare: 0, education: 0, culture: 0 });
-    fetchRegionReport(admCd)
-      .then((data) => {
-        setReport(data);
-        setSelectedAdmCd(admCd);
-      })
-      .catch(() => setError("해당 행정동의 격차 분석 데이터를 찾을 수 없습니다."))
-      .finally(() => setLoading(false));
-  }, [admCd, setSelectedAdmCd]);
+    try {
+      const data = await fetchRegionReport(code);
+      setReport(data);
+      setSelectedAdmCd(code);
+    } catch {
+      setError("해당 행정동의 격차 분석 데이터를 찾을 수 없습니다.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadReport(admCd);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [admCd]);
+
+  const handleSyncPublicData = async () => {
+    setSyncing(true);
+    try {
+      await triggerPublicSync();
+      showToast({ message: "공공데이터포털 4종 API 및 격차 지수를 최신 실데이터로 갱신했어요." });
+      await loadReport(admCd);
+    } catch (err) {
+      showToast({
+        message: err instanceof Error ? err.message : "공공 API 동기화에 실패했습니다.",
+      });
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const handleApplyFacility = (category: CategoryType, facilityName: string) => {
     setSimCounts((prev) => ({ ...prev, [category]: Math.min(6, prev[category] + 1) }));
@@ -80,7 +103,23 @@ export default function RegionReportPage() {
     <div className="space-y-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <span className="text-xs font-bold text-[#0d6e6e]">읍면동 수요·공급 격차 분석</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-bold text-[#0d6e6e]">읍면동 수요·공급 격차 분석</span>
+            {region.dataSource === "public_api" ? (
+              <span className="inline-flex items-center gap-1 rounded-full bg-[#e8f5f5] px-2.5 py-0.5 text-xs font-bold text-[#0d6e6e]">
+                <Database className="h-3 w-3" />
+                공공 API 실데이터
+                {region.statsYm && region.statsYm.length === 6
+                  ? ` · 행안부 ${region.statsYm.slice(0, 4)}.${region.statsYm.slice(4)}`
+                  : ""}
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 rounded-full bg-[#f2f4f6] px-2.5 py-0.5 text-xs font-bold text-[#4e5968]">
+                <Database className="h-3 w-3" />
+                기본 통계 기준
+              </span>
+            )}
+          </div>
           <h1 className="mt-1 text-3xl font-extrabold tracking-tight text-[#191f28]">
             {region.sido} {region.sigungu} {region.dong} 리포트
           </h1>
@@ -89,22 +128,33 @@ export default function RegionReportPage() {
           </p>
         </div>
 
-        <div className="min-w-[240px]">
-          <label htmlFor="report-region-switch" className="block text-xs font-bold text-[#8b95a1]">
-            행정동 전환 (격차 높은 순)
-          </label>
-          <select
-            id="report-region-switch"
-            value={admCd}
-            onChange={(e) => router.push(`/report/${e.target.value}`)}
-            className="mt-1.5 w-full rounded-xl border border-[#d1d6db] bg-white px-3.5 py-2.5 text-sm font-bold text-[#191f28]"
+        <div className="flex flex-wrap items-end gap-2.5">
+          <div className="min-w-[240px]">
+            <label htmlFor="report-region-switch" className="block text-xs font-bold text-[#8b95a1]">
+              행정동 전환 (격차 높은 순)
+            </label>
+            <select
+              id="report-region-switch"
+              value={admCd}
+              onChange={(e) => router.push(`/report/${e.target.value}`)}
+              className="mt-1.5 w-full rounded-xl border border-[#d1d6db] bg-white px-3.5 py-2.5 text-sm font-bold text-[#191f28]"
+            >
+              {regions.map((r) => (
+                <option key={r.admCd} value={r.admCd}>
+                  {r.sigungu} {r.dong} (격차 {r.scores.gapIndex > 0 ? `+${r.scores.gapIndex}` : r.scores.gapIndex})
+                </option>
+              ))}
+            </select>
+          </div>
+          <button
+            type="button"
+            onClick={handleSyncPublicData}
+            disabled={syncing}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-[#cce4e4] bg-[#f4fbfb] px-3.5 py-2.5 text-xs font-bold text-[#0d6e6e] transition-colors hover:bg-[#e8f5f5] disabled:opacity-60"
           >
-            {regions.map((r) => (
-              <option key={r.admCd} value={r.admCd}>
-                {r.sigungu} {r.dong} (격차 {r.scores.gapIndex > 0 ? `+${r.scores.gapIndex}` : r.scores.gapIndex})
-              </option>
-            ))}
-          </select>
+            <RefreshCw className={`h-3.5 w-3.5 ${syncing ? "animate-spin" : ""}`} />
+            <span>{syncing ? "공공 API 동기화 중…" : "공공 API 최신화"}</span>
+          </button>
         </div>
       </div>
 
@@ -205,11 +255,23 @@ export default function RegionReportPage() {
           </div>
 
           <div className="mt-6 rounded-2xl bg-[#f6f7f9] p-4 text-xs text-[#4e5968]">
-            <p className="font-bold text-[#191f28]">산출 기준 안내</p>
-            <p className="mt-1 leading-relaxed">
-              격차 지수는 행정동별 인구·청년/어르신·취약계층 수요 지표에서 생활권 내 복지·교육·문화 공급
-              지표를 차감해 산출합니다.
+            <p className="font-bold text-[#191f28]">동적 산출 공식 및 공공 데이터 출처</p>
+            <p className="mt-1.5 leading-relaxed">
+              {report.formulaSummary ||
+                "격차 지수는 행정동별 인구·청년/어르신·취약계층 수요 지표에서 생활권 내 복지·교육·문화 공급 지표를 차감해 산출합니다."}
             </p>
+            {region.sourceNotes && region.sourceNotes.length > 0 ? (
+              <div className="mt-2.5 flex flex-wrap gap-1.5">
+                {region.sourceNotes.map((src) => (
+                  <span
+                    key={src}
+                    className="rounded-lg border border-[#e5e8eb] bg-white px-2 py-0.5 text-[11px] font-semibold text-[#4e5968]"
+                  >
+                    {src}
+                  </span>
+                ))}
+              </div>
+            ) : null}
           </div>
         </div>
       </section>

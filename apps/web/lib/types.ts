@@ -172,6 +172,9 @@ export interface RegionStat {
     gapIndex: number;
     shortageCategories: CategoryType[];
   };
+  dataSource?: string;
+  statsYm?: string | null;
+  sourceNotes?: string[];
   updatedAt: string;
 }
 
@@ -198,6 +201,7 @@ export interface RegionReport {
   recentDemandSignals: Record<string, number>;
   nearbyRecommended: Program[];
   recommendedFacilities: RecommendedFacility[];
+  formulaSummary?: string;
   insights: string[];
 }
 

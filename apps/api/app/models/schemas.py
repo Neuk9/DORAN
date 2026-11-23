@@ -208,6 +208,9 @@ class RegionStatOut(BaseModel):
     population: RegionPopulation
     supply: RegionSupply
     scores: RegionScores
+    dataSource: str = "seed"
+    statsYm: str | None = None
+    sourceNotes: list[str] = Field(default_factory=list)
     updatedAt: datetime
 
 
@@ -229,6 +232,7 @@ class RegionReportOut(BaseModel):
     recentDemandSignals: dict[str, int]
     nearbyRecommended: list[ProgramOut]
     recommendedFacilities: list[RecommendedFacility] = Field(default_factory=list)
+    formulaSummary: str = ""
     insights: list[str]
 
 

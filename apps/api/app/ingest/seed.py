@@ -6,10 +6,11 @@ from pymongo.asynchronous.database import AsyncDatabase
 
 from app.core.db import db_manager
 from app.ingest.seed_data import PROGRAMS_SEED, REGION_STATS_SEED
+from app.services.gap import compute_region_scores
 
 
 async def seed_database(db: AsyncDatabase) -> dict[str, int]:
-    """Idempotent upsert for demo programs and region gap stats."""
+    """Idempotent upsert for demo programs and dynamically scored region gap stats."""
     program_ops = []
     for doc in PROGRAMS_SEED:
         payload = {k: v for k, v in doc.items() if v is not None or k == "deadline"}
@@ -24,13 +25,21 @@ async def seed_database(db: AsyncDatabase) -> dict[str, int]:
             )
         )
 
+    scored_regions = compute_region_scores(REGION_STATS_SEED)
     region_ops = [
         UpdateOne(
             {"admCd": doc["admCd"]},
-            {"$set": doc},
+            {
+                "$set": {
+                    **doc,
+                    "dataSource": doc.get("dataSource", "seed"),
+                    "sourceNotes": doc.get("sourceNotes")
+                    or ["오프라인 초기 시드(공공 API 키 연동 시 자동 교체)"],
+                }
+            },
             upsert=True,
         )
-        for doc in REGION_STATS_SEED
+        for doc in scored_regions
     ]
 
     if program_ops:

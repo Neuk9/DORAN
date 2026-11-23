@@ -1,11 +1,26 @@
 from fastapi import APIRouter, HTTPException, Query
 
+from app.core.config import settings
 from app.core.db import get_db
+from app.ingest.sync_public import sync_all_public_data
 from app.models.schemas import ApiResponse, RegionStatOut
 from app.services.gap import build_region_report
 from app.services.kakao_places import reverse_geocode
 
 router = APIRouter(prefix="/api/regions", tags=["regions"])
+
+
+@router.post("/sync", response_model=ApiResponse)
+async def trigger_public_sync() -> ApiResponse:
+    """공공데이터포털 4종 오픈API + 카카오 로컬 실데이터를 즉시 동기화하고 격차 지수를 재산출합니다."""
+    if not settings.data_go_kr_key:
+        raise HTTPException(
+            status_code=503,
+            detail="서버에 DATA_GO_KR_KEY가 설정되어 있지 않아 공공 API 동기화를 실행할 수 없습니다.",
+        )
+    db = get_db()
+    summary = await sync_all_public_data(db)
+    return ApiResponse(data=summary, meta={"synced": True})
 
 
 @router.get("", response_model=ApiResponse)
