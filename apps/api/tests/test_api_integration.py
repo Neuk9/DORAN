@@ -110,6 +110,9 @@ async def test_region_report_and_saved_checklist(client: AsyncClient) -> None:
     assert report["region"]["dong"] == "가리봉동"
     assert len(report["insights"]) >= 2
     assert len(report["nearbyRecommended"]) >= 1
+    assert len(report["recommendedFacilities"]) >= 2
+    assert any("미보유" in f["currentStatus"] for f in report["recommendedFacilities"])
+    assert any("어르신" in f["targetDemographic"] or "취약" in f["targetDemographic"] for f in report["recommendedFacilities"])
 
     # 체크리스트 추가 → 조회 → 삭제
     programs_resp = await client.get("/api/programs", params={"limit": 2})

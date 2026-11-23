@@ -6,10 +6,11 @@ import { useParams, useRouter } from "next/navigation";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { AlertCircle, Building2, Lightbulb, Users } from "lucide-react";
 import { useApp } from "@/components/AppContext";
-import { GapPolicySimulator } from "@/components/GapPolicySimulator";
+import { FacilityRecommendations } from "@/components/FacilityRecommendations";
+import { GapPolicySimulator, type SimulatorCounts } from "@/components/GapPolicySimulator";
 import { ProgramCard } from "@/components/ProgramCard";
 import { fetchRegionReport } from "@/lib/api";
-import { CATEGORY_LABELS, type RegionReport } from "@/lib/types";
+import { CATEGORY_LABELS, type CategoryType, type RegionReport } from "@/lib/types";
 
 const InteractiveAIMap = dynamic(() => import("@/components/InteractiveAIMap"), {
   ssr: false,
@@ -23,8 +24,9 @@ const InteractiveAIMap = dynamic(() => import("@/components/InteractiveAIMap"), 
 export default function RegionReportPage() {
   const params = useParams<{ admCd: string }>();
   const router = useRouter();
-  const { regions, setSelectedAdmCd } = useApp();
+  const { regions, setSelectedAdmCd, showToast } = useApp();
   const [report, setReport] = useState<RegionReport | null>(null);
+  const [simCounts, setSimCounts] = useState<SimulatorCounts>({ welfare: 0, education: 0, culture: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,6 +35,7 @@ export default function RegionReportPage() {
   useEffect(() => {
     setLoading(true);
     setError(null);
+    setSimCounts({ welfare: 0, education: 0, culture: 0 });
     fetchRegionReport(admCd)
       .then((data) => {
         setReport(data);
@@ -41,6 +44,12 @@ export default function RegionReportPage() {
       .catch(() => setError("해당 행정동의 격차 분석 데이터를 찾을 수 없습니다."))
       .finally(() => setLoading(false));
   }, [admCd, setSelectedAdmCd]);
+
+  const handleApplyFacility = (category: CategoryType, facilityName: string) => {
+    setSimCounts((prev) => ({ ...prev, [category]: Math.min(6, prev[category] + 1) }));
+    showToast({ message: `'${facilityName}'을(를) 시뮬레이터(${CATEGORY_LABELS[category]} +1곳)에 반영했어요.` });
+    document.getElementById("gap-policy-simulator")?.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
 
   if (loading) {
     return <div className="h-96 animate-pulse rounded-3xl border border-[#e5e8eb] bg-white" />;
@@ -205,8 +214,15 @@ export default function RegionReportPage() {
         </div>
       </section>
 
+      {/* 인구 분포 기반 우리 동네 우선 필요 시설 추천 */}
+      <FacilityRecommendations
+        region={region}
+        facilities={report.recommendedFacilities || []}
+        onApplyToSimulator={handleApplyFacility}
+      />
+
       {/* 지자체 정책 기획 · ESG 시뮬레이터 */}
-      <GapPolicySimulator region={region} />
+      <GapPolicySimulator region={region} counts={simCounts} onChangeCounts={setSimCounts} />
 
       {/* 시각화 차트 */}
       <section className="grid gap-6 lg:grid-cols-2">

@@ -211,11 +211,24 @@ class RegionStatOut(BaseModel):
     updatedAt: datetime
 
 
+class RecommendedFacility(BaseModel):
+    name: str
+    category: CategoryType
+    priority: Literal["urgent", "high", "recommended"]
+    targetDemographic: str
+    currentInDongCount: int
+    currentStatus: str
+    rationale: str
+    deliverySuggestion: str
+    estimatedGapReduction: float
+
+
 class RegionReportOut(BaseModel):
     region: RegionStatOut
     liveProgramCounts: RegionSupply
     recentDemandSignals: dict[str, int]
     nearbyRecommended: list[ProgramOut]
+    recommendedFacilities: list[RecommendedFacility] = Field(default_factory=list)
     insights: list[str]
 
 
