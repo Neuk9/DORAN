@@ -4,6 +4,7 @@ import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AlertTriangle, PhoneCall, Send, ShieldCheck, SlidersHorizontal, Sparkles } from "lucide-react";
 import { useApp } from "@/components/AppContext";
+import { PageHeader } from "@/components/PageHeader";
 import { ProgramCard } from "@/components/ProgramCard";
 import { postChatRecommend } from "@/lib/api";
 import {
@@ -86,23 +87,20 @@ function ChatContent() {
   };
 
   return (
-    <div className="space-y-6">
-      <section className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h1 className="text-2xl font-extrabold text-stone-900">AI 맞춤형 공공자원 상담</h1>
-            <p className="mt-1 text-sm text-stone-600">
-              거주지, 연령, 상황, 원하는 도움을 일상 말로 적어주세요. 전화번호·주민번호 등은 자동 마스킹되며
-              원문은 저장되지 않습니다.
-            </p>
-          </div>
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-teal-50 px-3 py-1 text-xs font-bold text-teal-800">
-            <ShieldCheck className="h-4 w-4" />
+    <div className="mx-auto max-w-5xl space-y-6">
+      <PageHeader
+        eyebrow={
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-soft px-3 py-1 text-xs font-bold text-brand">
+            <ShieldCheck className="h-4 w-4" aria-hidden="true" />
             원문 미저장 · PII 자동 보호
           </span>
-        </div>
+        }
+        title="AI 맞춤형 공공자원 상담"
+        description="거주지, 연령, 상황, 원하는 도움을 일상 말로 적어주세요. 전화번호·주민번호 등은 자동 마스킹되며 원문은 저장되지 않습니다."
+      />
 
-        <form onSubmit={handleSubmit} className="mt-4 space-y-3">
+      <section className="rounded-3xl bg-surface p-5 shadow-card ring-1 ring-line/70 sm:p-6">
+        <form onSubmit={handleSubmit} className="space-y-3">
           <label htmlFor="chat-textarea" className="sr-only">
             상담 내용 입력
           </label>
@@ -112,7 +110,7 @@ function ChatContent() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="예: 서울 구로구에 사는 20대 대학생인데, 주말에 무료로 악기를 배울 수 있는 곳이나 청년 지원금이 있을까?"
-            className="w-full rounded-2xl border border-stone-300 bg-stone-50 p-4 text-sm text-stone-900 placeholder-stone-400 focus:border-teal-700 focus:bg-white sm:text-base"
+            className="w-full rounded-2xl border border-line-strong bg-fill-soft p-4 text-sm leading-relaxed text-ink placeholder-faint focus:border-brand focus:bg-surface focus:outline-none sm:text-base"
           />
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap gap-1.5">
@@ -127,7 +125,7 @@ function ChatContent() {
                   className={`rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors ${
                     idx === 3
                       ? "border-rose-200 bg-rose-50 text-rose-800 hover:bg-rose-100"
-                      : "border-stone-200 bg-stone-50 text-stone-700 hover:bg-stone-100"
+                      : "border-line bg-fill-soft text-muted hover:bg-fill hover:text-ink"
                   }`}
                 >
                   {idx === 3 ? "위기 대응 테스트" : `예시 ${idx + 1}`}
@@ -137,7 +135,7 @@ function ChatContent() {
             <button
               type="submit"
               disabled={loading || !input.trim()}
-              className="inline-flex items-center gap-2 rounded-xl bg-teal-700 px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-teal-800 disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-strong disabled:opacity-50"
             >
               <Send className="h-4 w-4" />
               <span>{loading ? "분석 중..." : "맞춤 추천 받기"}</span>
@@ -173,13 +171,13 @@ function ChatContent() {
                     className="flex flex-col justify-between rounded-2xl border border-rose-200 bg-white p-4 shadow-sm transition-colors hover:border-rose-400"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="font-bold text-stone-900">{c.name}</span>
+                      <span className="font-bold text-ink">{c.name}</span>
                       <span className="inline-flex items-center gap-1 rounded-full bg-rose-600 px-2.5 py-0.5 text-sm font-extrabold text-white">
                         <PhoneCall className="h-3.5 w-3.5" />
                         {c.number}
                       </span>
                     </div>
-                    <p className="mt-2 text-xs text-stone-600">{c.description}</p>
+                    <p className="mt-2 text-xs text-muted">{c.description}</p>
                   </a>
                 ))}
               </div>
@@ -190,40 +188,40 @@ function ChatContent() {
 
       {/* 추출된 조건 구조화 + 조건 칩 수정 */}
       {result && !result.crisis && editableProfile ? (
-        <section className="rounded-2xl border border-teal-200 bg-teal-50/60 p-5">
+        <section className="rounded-2xl border border-brand-line bg-brand-soft/60 p-5">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2 text-sm font-bold text-teal-900">
+            <div className="flex items-center gap-2 text-sm font-bold text-brand-strong">
               <SlidersHorizontal className="h-4 w-4" />
               <span>AI가 추출한 조건 (칩을 눌러 바로 재검색할 수 있습니다)</span>
             </div>
-            <span className="text-xs font-medium text-teal-700">엔진: {result.provider} + 결정론 룰</span>
+            <span className="text-xs font-medium text-brand">엔진: {result.provider} + 결정론 룰</span>
           </div>
 
           <div className="mt-3 flex flex-wrap gap-2 text-xs">
             {editableProfile.sigungu ? (
-              <span className="rounded-full bg-white px-3 py-1 font-semibold text-stone-800 shadow-xs">
+              <span className="rounded-full bg-white px-3 py-1 font-semibold text-ink-soft shadow-xs">
                 지역: {editableProfile.sido} {editableProfile.sigungu} {editableProfile.dong || ""}
               </span>
             ) : null}
             {editableProfile.age ? (
-              <span className="rounded-full bg-white px-3 py-1 font-semibold text-stone-800 shadow-xs">
+              <span className="rounded-full bg-white px-3 py-1 font-semibold text-ink-soft shadow-xs">
                 추정 연령: 만 {editableProfile.age}세
               </span>
             ) : null}
             {editableProfile.targetGroups.map((g) => (
-              <span key={g} className="rounded-full bg-white px-3 py-1 font-semibold text-stone-800 shadow-xs">
+              <span key={g} className="rounded-full bg-white px-3 py-1 font-semibold text-ink-soft shadow-xs">
                 유형: {GROUP_LABELS[g] || g}
               </span>
             ))}
             {editableProfile.timePreferences.map((t) => (
-              <span key={t} className="rounded-full bg-white px-3 py-1 font-semibold text-stone-800 shadow-xs">
+              <span key={t} className="rounded-full bg-white px-3 py-1 font-semibold text-ink-soft shadow-xs">
                 시간: {TIME_LABELS[t] || t}
               </span>
             ))}
           </div>
 
-          <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-teal-200/70 pt-3">
-            <span className="text-xs font-semibold text-teal-900">빠른 조정:</span>
+          <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-brand-line/70 pt-3">
+            <span className="text-xs font-semibold text-brand-strong">빠른 조정:</span>
             {(["welfare", "education", "culture"] as CategoryType[]).map((cat) => {
               const active = editableProfile.categories.includes(cat);
               return (
@@ -233,8 +231,8 @@ function ChatContent() {
                   onClick={() => toggleCategoryChip(cat)}
                   className={`rounded-full px-3 py-1 text-xs font-bold transition-colors ${
                     active
-                      ? "bg-teal-700 text-white"
-                      : "border border-teal-300 bg-white text-teal-800 hover:bg-teal-100"
+                      ? "bg-brand text-white"
+                      : "border border-brand-line bg-white text-brand hover:bg-brand-soft"
                   }`}
                 >
                   {CATEGORY_LABELS[cat]}
@@ -246,7 +244,7 @@ function ChatContent() {
               onClick={toggleFreeChip}
               className={`rounded-full px-3 py-1 text-xs font-bold transition-colors ${
                 editableProfile.preferFree
-                  ? "bg-amber-500 text-stone-950"
+                  ? "bg-amber-500 text-ink"
                   : "border border-amber-300 bg-white text-amber-900 hover:bg-amber-50"
               }`}
             >
@@ -259,8 +257,8 @@ function ChatContent() {
       {/* 추천 결과 목록 */}
       {result && !result.crisis ? (
         <section className="space-y-4">
-          <div className="flex items-center gap-2 text-sm font-semibold text-stone-700">
-            <Sparkles className="h-4 w-4 text-teal-700" />
+          <div className="flex items-center gap-2 text-sm font-semibold text-muted">
+            <Sparkles className="h-4 w-4 text-brand" />
             <span>{result.summaryMessage}</span>
           </div>
 
@@ -276,7 +274,7 @@ function ChatContent() {
               ))}
             </div>
           ) : (
-            <div className="rounded-2xl border border-stone-200 bg-white p-8 text-center text-sm text-stone-600">
+            <div className="rounded-2xl border border-line bg-white p-8 text-center text-sm text-muted">
               조건에 맞는 자원이 없습니다. 위 빠른 조정 버튼으로 분야를 넓혀 보세요.
             </div>
           )}

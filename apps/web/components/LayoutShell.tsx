@@ -19,41 +19,45 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
 
   return (
     <>
-      <main className="mx-auto w-full max-w-[1400px] px-4 py-6 pb-28 sm:px-6 md:pb-12 lg:px-8">
+      <main className="mx-auto w-full max-w-[1360px] px-4 py-7 pb-28 sm:px-6 md:py-10 md:pb-16 lg:px-8">
         {children}
       </main>
 
-      <footer className="mt-20 hidden border-t border-[#e5e8eb] bg-white py-10 md:block">
-        <div className="mx-auto flex max-w-[1400px] flex-col justify-between gap-6 px-5 sm:flex-row sm:items-end sm:px-6 lg:px-8">
-          <div className="space-y-2">
+      <footer className="mt-20 hidden border-t border-line bg-surface py-10 md:block">
+        <div className="mx-auto flex max-w-[1360px] flex-col justify-between gap-6 px-5 sm:flex-row sm:items-end sm:px-6 lg:px-8">
+          <div className="space-y-1.5">
             <div className="flex items-center gap-2">
-              <span className="text-base font-extrabold tracking-tight text-[#191f28]">도란도란</span>
-              <span className="text-xs font-medium text-[#8b95a1]">DORAN</span>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="9.5" cy="12" r="6.5" fill="#0f5c57" />
+                <circle cx="16.5" cy="12" r="4.5" fill="#c85a32" fillOpacity="0.88" />
+              </svg>
+              <span className="text-base font-extrabold tracking-tight text-ink">도란도란</span>
+              <span className="text-xs font-medium text-faint">DORAN</span>
             </div>
-            <p className="text-sm text-[#4e5968]">
-              AI 자연어 이해와 공공데이터를 결합해 개인 맞춤 공공자원과 지역 격차를 한눈에 연결합니다.
+            <p className="max-w-xl text-sm leading-relaxed text-muted">
+              자연어 이해와 공공데이터를 결합해 개인 맞춤 공공자원과 지역 격차를 한눈에 연결합니다.
             </p>
-            <p className="text-xs text-[#8b95a1]">
-              연계 출처: 한국사회보장정보원(복지로) · 행정안전부(공유누리) · 한국문화정보원 · K-MOOC · 도서관정보나루
+            <p className="text-xs leading-relaxed text-faint">
+              연계 출처: 행정안전부(주민등록 인구 · 전국도서관표준데이터) · 한국사회보장정보원(복지로 · 사회복지시설) · 카카오 로컬
             </p>
           </div>
 
-          <div className="flex flex-col items-start gap-2 text-xs text-[#6b7684] sm:items-end">
-            <div className="flex items-center gap-4 font-semibold text-[#4e5968]">
-              <Link href="/" className="hover:text-[#0d6e6e]">
+          <div className="flex flex-col items-start gap-2 text-xs text-subtle sm:items-end">
+            <div className="flex items-center gap-4 font-semibold text-muted">
+              <Link href="/" className="hover:text-brand">
                 AI 검색
               </Link>
-              <Link href="/explore" className="hover:text-[#0d6e6e]">
+              <Link href="/explore" className="hover:text-brand">
                 전체 탐색
               </Link>
-              <Link href={`/report/${selectedAdmCd}`} className="hover:text-[#0d6e6e]">
+              <Link href={`/report/${selectedAdmCd}`} className="hover:text-brand">
                 지역 격차 리포트
               </Link>
-              <Link href="/saved" className="hover:text-[#0d6e6e]">
+              <Link href="/saved" className="hover:text-brand">
                 체크리스트
               </Link>
             </div>
-            <p className="text-[#8b95a1]">
+            <p className="text-faint">
               상담 원문 미저장 · 익명 체크리스트 24시간 보관 · 최종 자격은 주관 기관 기준을 따릅니다.
             </p>
           </div>
@@ -63,7 +67,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
       {/* 모바일 하단 네비게이션 탭바 */}
       <nav
         aria-label="모바일 하단 메뉴"
-        className="fixed right-0 bottom-0 left-0 z-40 grid grid-cols-4 border-t border-[#e5e8eb] bg-white/95 py-1.5 backdrop-blur md:hidden"
+        className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-line bg-surface/95 py-2 backdrop-blur-md md:hidden"
       >
         {mobileTabs.map((tab) => {
           const Icon = tab.icon;
@@ -73,14 +77,21 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
             <Link
               key={tab.href}
               href={tab.href}
-              className={`relative flex flex-col items-center justify-center gap-0.5 py-1 text-[11px] font-bold ${
-                active ? "text-[#0d6e6e]" : "text-[#8b95a1]"
+              aria-current={active ? "page" : undefined}
+              className={`relative flex flex-col items-center justify-center gap-0.5 py-1 text-[12px] font-bold ${
+                active ? "text-brand" : "text-faint"
               }`}
             >
               <div className="relative">
-                <Icon className="h-5 w-5" aria-hidden="true" />
+                <span
+                  className={`flex h-7 w-11 items-center justify-center rounded-full transition-colors ${
+                    active ? "bg-brand-soft" : ""
+                  }`}
+                >
+                  <Icon className="h-5 w-5" aria-hidden="true" />
+                </span>
                 {tab.badge ? (
-                  <span className="absolute -top-1.5 -right-2.5 rounded-full bg-[#0d6e6e] px-1.5 text-[10px] font-bold text-white">
+                  <span className="absolute -top-1.5 -right-0.5 rounded-full bg-brand px-1.5 text-[11px] font-bold text-white">
                     {tab.badge}
                   </span>
                 ) : null}
