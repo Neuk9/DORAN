@@ -34,7 +34,9 @@ KST = timezone(timedelta(hours=9))
 MOIS_POP_URL = "https://apis.data.go.kr/1741000/admmSexdAgePpltn/selectAdmmSexdAgePpltn"
 MOIS_HOUSEHOLD_URL = "https://apis.data.go.kr/1741000/stdgPpltnHhStus/selectStdgPpltnHhStus"
 BOKJIRO_LOCAL_URL = "https://apis.data.go.kr/B554287/LocalGovernmentWelfareInformations/LcgvWelfarelist"
+BOKJIRO_LOCAL_DETAIL_URL = "https://apis.data.go.kr/B554287/LocalGovernmentWelfareInformations/LcgvWelfaredetailed"
 BOKJIRO_CENTRAL_URL = "https://apis.data.go.kr/B554287/NationalWelfareInformationsV001/NationalWelfarelistV001"
+BOKJIRO_CENTRAL_DETAIL_URL = "https://apis.data.go.kr/B554287/NationalWelfareInformationsV001/NationalWelfaredetailedV001"
 WELFARE_FCLT_LIST_URL = "https://apis.data.go.kr/B554287/sclWlfrFcltInfoInqirService2/getFcltListInfoInqire2"
 WELFARE_FCLT_DETAIL_URL = "https://apis.data.go.kr/B554287/sclWlfrFcltInfoInqirService2/getFcltByBassInfoInqire2"
 LIBRARY_STD_URL = "https://api.data.go.kr/openapi/tn_pubr_public_lbrry_api"
@@ -288,6 +290,174 @@ def _parse_bokjiro_targets(life_array: str, thema_array: str) -> tuple[list[str]
     return list(dict.fromkeys(groups)), min_age, max_age, category
 
 
+def _clean_bokjiro_line(text: str, max_len: int = 110) -> str:
+    cleaned = re.sub(r"[○●◎※■□▶▷◆◇▪▫]+", " ", text or "")
+    cleaned = re.sub(r"\s+", " ", cleaned).strip(" -·:")
+    if len(cleaned) > max_len:
+        return cleaned[: max_len - 1].rstrip() + "…"
+    return cleaned
+
+
+def extract_bokjiro_detail_fields(
+    target_text: str,
+    criteria_text: str,
+    service_text: str,
+    apply_text: str,
+) -> dict:
+    """복지로 상세조회 원문 텍스트에서 연령·기준중위소득·지원금액·구비서류·확인사항을 결정론적으로 추출합니다."""
+    combined_elig = f"{target_text}\n{criteria_text}"
+    min_age: int | None = None
+    max_age: int | None = None
+
+    range_match = re.search(
+        r"(?:만\s*)?(\d{1,3})\s*세?\s*(?:이상\s*)?[~\-～]\s*(?:만\s*)?(\d{1,3})\s*세",
+        combined_elig,
+    )
+    if range_match:
+        a, b = int(range_match.group(1)), int(range_match.group(2))
+        if 0 <= a <= b <= 120:
+            min_age, max_age = a, b
+    else:
+        min_match = re.search(r"(?:만\s*)?(\d{1,3})\s*세\s*이상", combined_elig)
+        if min_match:
+            val = int(min_match.group(1))
+            if 0 <= val <= 120:
+                min_age = val
+        max_match = re.search(r"(?:만\s*)?(\d{1,3})\s*세\s*(?:이하|미만)", combined_elig)
+        if max_match:
+            val = int(max_match.group(1))
+            if 0 <= val <= 120:
+                max_age = val
+
+    income_matches = [
+        int(m.group(1))
+        for m in re.finditer(r"중위\s*소득\s*(?:기준\s*)?(\d{2,3})\s*%", combined_elig)
+        if 30 <= int(m.group(1)) <= 300
+    ]
+    income_max_pct = max(income_matches) if income_matches else None
+
+    # 지원 금액 추출 (만원 / 원)
+    amount = 0
+    man_matches = [
+        int(m.group(1).replace(",", "")) * 10000
+        for m in re.finditer(r"(\d{1,4}(?:,\d{3})?)\s*만\s*원", service_text)
+    ]
+    won_matches = [
+        int(m.group(1).replace(",", ""))
+        for m in re.finditer(r"(\d{1,3}(?:,\d{3})+)\s*원", service_text)
+    ]
+    candidates = [v for v in (man_matches + won_matches) if 10_000 <= v <= 50_000_000]
+    if candidates:
+        amount = max(candidates)
+
+    cost_desc = _clean_bokjiro_line(service_text, max_len=78) if service_text.strip() else ""
+
+    doc_catalog = (
+        ("신청서", ("신청서",)),
+        ("신분증", ("신분증", "주민등록증")),
+        ("주민등록등본", ("주민등록등본", "등본")),
+        ("통장사본", ("통장사본", "통장 사본", "계좌")),
+        ("가족관계증명서", ("가족관계증명서",)),
+        ("소득·재산 증빙서류", ("소득", "재산", "급여명세서", "원천징수")),
+        ("건강보험료 납부확인서", ("건강보험",)),
+        ("임대차계약서", ("임대차계약서", "전세계약서", "월세계약서")),
+        ("재학증명서", ("재학증명서",)),
+        ("진단서·소견서", ("진단서", "소견서")),
+        ("위임장(대리 신청 시)", ("위임장", "위윔장")),
+    )
+    doc_haystack = f"{apply_text}\n{criteria_text}"
+    required_docs = [
+        label for label, needles in doc_catalog if any(n in doc_haystack for n in needles)
+    ]
+
+    verifications: list[str] = []
+    if target_text.strip():
+        verifications.append(_clean_bokjiro_line(target_text, max_len=96))
+    if criteria_text.strip() and "참고해주시기 바랍니다" not in criteria_text:
+        c_line = _clean_bokjiro_line(criteria_text, max_len=96)
+        if c_line and c_line not in verifications:
+            verifications.append(c_line)
+
+    return {
+        "minAge": min_age,
+        "maxAge": max_age,
+        "incomeMaxPct": income_max_pct,
+        "amount": amount,
+        "costDescription": cost_desc,
+        "requiredDocs": required_docs,
+        "requiresVerification": verifications[:2],
+    }
+
+
+async def _fetch_bokjiro_local_detail(
+    client: httpx.AsyncClient,
+    api_key: str,
+    serv_id: str,
+) -> dict | None:
+    try:
+        resp = await client.get(
+            BOKJIRO_LOCAL_DETAIL_URL,
+            params={"serviceKey": api_key, "servId": serv_id},
+            timeout=12.0,
+        )
+        if resp.status_code != 200:
+            return None
+        root = ET.fromstring(resp.text)
+        if (root.findtext("resultCode") or "").strip() not in ("0", "00"):
+            return None
+        parsed = extract_bokjiro_detail_fields(
+            root.findtext("sprtTrgtCn") or "",
+            root.findtext("slctCritCn") or "",
+            root.findtext("alwServCn") or "",
+            root.findtext("aplyMtdCn") or "",
+        )
+        phone = (root.findtext(".//inqplCtadrList/wlfareInfoReldCn") or "").strip() or None
+        end_ymd = (root.findtext("enfcEndYmd") or "").strip()
+        deadline: datetime | None = None
+        if len(end_ymd) == 8 and end_ymd.isdigit() and not end_ymd.startswith("9999"):
+            try:
+                deadline = datetime(
+                    int(end_ymd[:4]), int(end_ymd[4:6]), int(end_ymd[6:8]), 23, 59, 59, tzinfo=KST
+                ).astimezone(UTC)
+            except ValueError:
+                deadline = None
+        parsed["phone"] = phone
+        parsed["deadline"] = deadline
+        parsed["applyDetail"] = _clean_bokjiro_line(root.findtext("aplyMtdCn") or "", max_len=90)
+        return parsed
+    except Exception:
+        return None
+
+
+async def _fetch_bokjiro_central_detail(
+    client: httpx.AsyncClient,
+    api_key: str,
+    serv_id: str,
+) -> dict | None:
+    try:
+        resp = await client.get(
+            BOKJIRO_CENTRAL_DETAIL_URL,
+            params={"serviceKey": api_key, "callTp": "D", "servId": serv_id},
+            timeout=12.0,
+        )
+        if resp.status_code != 200:
+            return None
+        root = ET.fromstring(resp.text)
+        if not (root.findtext("servNm") or "").strip():
+            return None
+        apply_link_text = (root.findtext(".//applmetList/servSeDetailLink") or "").strip()
+        parsed = extract_bokjiro_detail_fields(
+            root.findtext("tgtrDtlCn") or "",
+            root.findtext("slctCritCn") or "",
+            root.findtext("alwServCn") or "",
+            apply_link_text,
+        )
+        parsed["applyDetail"] = _clean_bokjiro_line(apply_link_text, max_len=90)
+        return parsed
+    except Exception:
+        return None
+
+
 async def sync_bokjiro_local(
     client: httpx.AsyncClient,
     db: AsyncDatabase,
@@ -296,7 +466,7 @@ async def sync_bokjiro_local(
     sigungu: str,
     sgg_cd: str,
 ) -> int:
-    """한국사회보장정보원 지자체복지서비스 API 동기화 (일시 타임아웃 시 1회 재시도)."""
+    """한국사회보장정보원 지자체복지서비스 목록+상세조회 API 동기화."""
     root = None
     for attempt in range(2):
         try:
@@ -305,7 +475,7 @@ async def sync_bokjiro_local(
                 params={
                     "serviceKey": api_key,
                     "pageNo": 1,
-                    "numOfRows": 50,
+                    "numOfRows": 40,
                     "ctpvNm": sido,
                     "sggNm": sigungu,
                 },
@@ -322,13 +492,27 @@ async def sync_bokjiro_local(
     if root is None:
         return 0
 
+    raw_items = [
+        item
+        for item in root.findall(".//servList")
+        if (item.findtext("servId") or "").strip() and (item.findtext("servNm") or "").strip()
+    ]
+    sem = asyncio.Semaphore(6)
+
+    async def _fetch_dtl(sid: str) -> tuple[str, dict | None]:
+        async with sem:
+            return sid, await _fetch_bokjiro_local_detail(client, api_key, sid)
+
+    dtl_pairs = await asyncio.gather(
+        *(_fetch_dtl((it.findtext("servId") or "").strip()) for it in raw_items[:25])
+    )
+    dtl_map = {sid: d for sid, d in dtl_pairs if d}
+
     now = datetime.now(UTC)
     ops: list[UpdateOne] = []
-    for item in root.findall(".//servList"):
+    for item in raw_items:
         serv_id = (item.findtext("servId") or "").strip()
         title = (item.findtext("servNm") or "").strip()
-        if not serv_id or not title:
-            continue
         summary = (item.findtext("servDgst") or "지자체 복지서비스 안내").strip()
         provider = (item.findtext("bizChrDeptNm") or f"{sido} {sigungu}").strip()
         link = (item.findtext("servDtlLink") or "").strip() or None
@@ -338,6 +522,26 @@ async def sync_bokjiro_local(
         apply_method = (item.findtext("aplyMtdNm") or "방문 또는 복지로 신청").strip()
 
         target_groups, min_age, max_age, category = _parse_bokjiro_targets(life_array, thema_array)
+        dtl = dtl_map.get(serv_id) or {}
+        if dtl.get("minAge") is not None:
+            min_age = dtl["minAge"]
+        if dtl.get("maxAge") is not None:
+            max_age = dtl["maxAge"]
+        income_max_pct = dtl.get("incomeMaxPct")
+        amount = int(dtl.get("amount") or 0)
+        cost_desc = dtl.get("costDescription") or "지자체 지원 (상세 기준 확인)"
+        required_docs = dtl.get("requiredDocs") or ["신분증", "주민등록등본"]
+        verifications = dtl.get("requiresVerification") or [
+            "지자체 거주 기간 및 상세 소득·자격 기준 확인 필요"
+        ]
+        phone = dtl.get("phone") or phone
+        deadline = dtl.get("deadline")
+        method_text = (
+            f"{apply_method} · {dtl['applyDetail']}"
+            if dtl.get("applyDetail")
+            else f"{apply_method} (관할 동 주민센터 또는 복지로)"
+        )
+
         tags = [sigungu, "복지로", "지자체"]
         for tok in (life_array + "," + thema_array).split(","):
             t = tok.strip()
@@ -358,28 +562,28 @@ async def sync_bokjiro_local(
                 "isNationwide": False,
             },
             "address": f"{sido} {sigungu}",
-            "cost": {"type": "subsidy", "amount": 0, "description": "지자체 지원 (상세 기준 확인)"},
+            "cost": {"type": "subsidy", "amount": amount, "description": cost_desc},
             "schedule": {
                 "days": ["mon", "tue", "wed", "thu", "fri"],
                 "timeSlots": ["weekday_day", "online"],
                 "hoursText": "평일 09:00~18:00 / 관할 주민센터 문의",
             },
-            "deadline": None,
-            "isAlwaysOpen": True,
+            "deadline": deadline,
+            "isAlwaysOpen": deadline is None,
             "eligibility": {
                 "minAge": min_age,
                 "maxAge": max_age,
                 "targetGroups": target_groups,
-                "incomeMaxPct": None,
-                "requiresVerification": ["지자체 거주 기간 및 상세 소득·자격 기준 확인 필요"],
-                "requiredDocs": ["신분증", "주민등록등본"],
+                "incomeMaxPct": income_max_pct,
+                "requiresVerification": verifications,
+                "requiredDocs": required_docs,
             },
             "applyInfo": {
-                "method": f"{apply_method} (관할 동 주민센터 또는 복지로)",
+                "method": method_text,
                 "url": link,
                 "phone": phone,
             },
-            "source": {"name": "한국사회보장정보원(지자체복지서비스 API)", "syncedAt": now},
+            "source": {"name": "한국사회보장정보원(지자체복지서비스 상세 API)", "syncedAt": now},
             "tags": tags[:8],
         }
         ops.append(
@@ -896,6 +1100,7 @@ async def sync_bokjiro_central(
         return []
 
     batches = await asyncio.gather(*(_fetch_kw(kw) for kw in keywords))
+    unique_items: list[ET.Element] = []
     for batch in batches:
         for item in batch:
             serv_id = (item.findtext("servId") or "").strip()
@@ -903,80 +1108,111 @@ async def sync_bokjiro_central(
             if not serv_id or not title or serv_id in seen_ids:
                 continue
             seen_ids.add(serv_id)
+            unique_items.append(item)
 
-            summary = (item.findtext("servDgst") or "중앙부처 전국 복지지원 사업").strip()
-            ministry = (item.findtext("jurMnofNm") or "중앙부처").strip()
-            dept = (item.findtext("jurOrgNm") or "").strip()
-            provider = f"{ministry} {dept}".strip()
-            link = (item.findtext("servDtlLink") or "").strip() or None
-            phone = (item.findtext("rprsCtadr") or "").strip() or "129"
-            life_array = (item.findtext("lifeArray") or "").strip()
-            trg_array = (item.findtext("trgterIndvdlArray") or "").strip()
-            thema_array = (item.findtext("intrsThemaArray") or "").strip()
-            cycle = (item.findtext("sprtCycNm") or "").strip()
-            pvsn = (item.findtext("srvPvsnNm") or "지원").strip()
-            online_yn = (item.findtext("onapPsbltYn") or "").strip()
+    sem = asyncio.Semaphore(6)
 
-            target_groups, min_age, max_age, category = _parse_bokjiro_targets(
-                f"{life_array},{trg_array}", thema_array
-            )
-            cost_desc = f"{cycle} {pvsn}".strip() if cycle else pvsn
-            apply_method = (
+    async def _fetch_dtl(sid: str) -> tuple[str, dict | None]:
+        async with sem:
+            return sid, await _fetch_bokjiro_central_detail(client, api_key, sid)
+
+    dtl_pairs = await asyncio.gather(
+        *(_fetch_dtl((it.findtext("servId") or "").strip()) for it in unique_items[:30])
+    )
+    dtl_map = {sid: d for sid, d in dtl_pairs if d}
+
+    for item in unique_items:
+        serv_id = (item.findtext("servId") or "").strip()
+        title = (item.findtext("servNm") or "").strip()
+        summary = (item.findtext("servDgst") or "중앙부처 전국 복지지원 사업").strip()
+        ministry = (item.findtext("jurMnofNm") or "중앙부처").strip()
+        dept = (item.findtext("jurOrgNm") or "").strip()
+        provider = f"{ministry} {dept}".strip()
+        link = (item.findtext("servDtlLink") or "").strip() or None
+        phone = (item.findtext("rprsCtadr") or "").strip() or "129"
+        life_array = (item.findtext("lifeArray") or "").strip()
+        trg_array = (item.findtext("trgterIndvdlArray") or "").strip()
+        thema_array = (item.findtext("intrsThemaArray") or "").strip()
+        cycle = (item.findtext("sprtCycNm") or "").strip()
+        pvsn = (item.findtext("srvPvsnNm") or "지원").strip()
+        online_yn = (item.findtext("onapPsbltYn") or "").strip()
+
+        target_groups, min_age, max_age, category = _parse_bokjiro_targets(
+            f"{life_array},{trg_array}", thema_array
+        )
+        dtl = dtl_map.get(serv_id) or {}
+        if dtl.get("minAge") is not None:
+            min_age = dtl["minAge"]
+        if dtl.get("maxAge") is not None:
+            max_age = dtl["maxAge"]
+        income_max_pct = dtl.get("incomeMaxPct")
+        amount = int(dtl.get("amount") or 0)
+        fallback_cost = f"{cycle} {pvsn}".strip() if cycle else pvsn
+        cost_desc = dtl.get("costDescription") or fallback_cost
+        required_docs = dtl.get("requiredDocs") or ["신분증", "소득·재산 증빙서류"]
+        verifications = dtl.get("requiresVerification") or [
+            "복지로 공식 페이지에서 세부 소득·자산 기준 확인 필요"
+        ]
+        apply_method = (
+            dtl["applyDetail"]
+            if dtl.get("applyDetail")
+            else (
                 "복지로 온라인 신청 또는 관할 주민센터 방문"
                 if online_yn == "Y"
                 else "관할 동 주민센터 방문 또는 담당 부처 문의"
             )
-            tags = ["전국", "복지로", "중앙부처", ministry]
-            for tok in f"{life_array},{trg_array},{thema_array}".split(","):
-                t = tok.strip()
-                if t and t not in tags:
-                    tags.append(t)
+        )
+        tags = ["전국", "복지로", "중앙부처", ministry]
+        for tok in f"{life_array},{trg_array},{thema_array}".split(","):
+            t = tok.strip()
+            if t and t not in tags:
+                tags.append(t)
 
-            doc = {
-                "externalId": f"bokjiro-central:{serv_id}",
-                "category": category,
-                "title": title,
-                "summary": summary,
-                "provider": provider,
-                "region": {
-                    "sido": "전국",
-                    "sigungu": "전국",
-                    "dong": None,
-                    "admCd": "0000000000",
-                    "isNationwide": True,
-                },
-                "address": "전국 온라인·주민센터",
-                "cost": {"type": "subsidy", "amount": 0, "description": cost_desc},
-                "schedule": {
-                    "days": ["mon", "tue", "wed", "thu", "fri"],
-                    "timeSlots": ["online", "weekday_day"],
-                    "hoursText": "상시 / 사업별 모집기간 확인",
-                },
-                "deadline": None,
-                "isAlwaysOpen": True,
-                "eligibility": {
-                    "minAge": min_age,
-                    "maxAge": max_age,
-                    "targetGroups": target_groups,
-                    "incomeMaxPct": None,
-                    "requiresVerification": ["복지로 공식 페이지에서 세부 소득·자산 기준 확인 필요"],
-                    "requiredDocs": ["신분증", "소득·재산 증빙서류"],
-                },
-                "applyInfo": {
-                    "method": apply_method,
-                    "url": link,
-                    "phone": phone,
-                },
-                "source": {"name": "한국사회보장정보원(중앙부처복지서비스 API)", "syncedAt": now},
-                "tags": tags[:8],
-            }
-            ops.append(
-                UpdateOne(
-                    {"externalId": doc["externalId"]},
-                    {"$set": doc, "$setOnInsert": {"createdAt": now}},
-                    upsert=True,
-                )
+        doc = {
+            "externalId": f"bokjiro-central:{serv_id}",
+            "category": category,
+            "title": title,
+            "summary": summary,
+            "provider": provider,
+            "region": {
+                "sido": "전국",
+                "sigungu": "전국",
+                "dong": None,
+                "admCd": "0000000000",
+                "isNationwide": True,
+            },
+            "address": "전국 온라인·주민센터",
+            "cost": {"type": "subsidy", "amount": amount, "description": cost_desc},
+            "schedule": {
+                "days": ["mon", "tue", "wed", "thu", "fri"],
+                "timeSlots": ["online", "weekday_day"],
+                "hoursText": "상시 / 사업별 모집기간 확인",
+            },
+            "deadline": None,
+            "isAlwaysOpen": True,
+            "eligibility": {
+                "minAge": min_age,
+                "maxAge": max_age,
+                "targetGroups": target_groups,
+                "incomeMaxPct": income_max_pct,
+                "requiresVerification": verifications,
+                "requiredDocs": required_docs,
+            },
+            "applyInfo": {
+                "method": apply_method,
+                "url": link,
+                "phone": phone,
+            },
+            "source": {"name": "한국사회보장정보원(중앙부처복지서비스 상세 API)", "syncedAt": now},
+            "tags": tags[:8],
+        }
+        ops.append(
+            UpdateOne(
+                {"externalId": doc["externalId"]},
+                {"$set": doc, "$setOnInsert": {"createdAt": now}},
+                upsert=True,
             )
+        )
 
     if ops:
         await db["programs"].bulk_write(ops, ordered=False)
@@ -1504,6 +1740,261 @@ async def sync_all_public_data(
         }
         logger.info("[sync_public] 실데이터 통합 동기화 완료: %s", summary)
         return summary
+
+
+async def kakao_coord_to_full_region(
+    client: httpx.AsyncClient,
+    lng: float,
+    lat: float,
+) -> dict | None:
+    """(lng, lat) -> 시도, 시군구, 시군구코드, 행정동코드(H), 법정동코드(B), 행정동명 반환."""
+    if not settings.kakao_api_key:
+        return None
+    try:
+        resp = await client.get(
+            KAKAO_COORD2REGION_URL,
+            headers=_kakao_headers(),
+            params={"x": lng, "y": lat},
+            timeout=6.0,
+        )
+        if resp.status_code != 200:
+            return None
+        docs = resp.json().get("documents") or []
+        h_doc = next((d for d in docs if d.get("region_type") == "H"), None)
+        b_doc = next((d for d in docs if d.get("region_type") == "B"), None)
+        base = h_doc or b_doc
+        if not base:
+            return None
+        h_code = str((h_doc or base).get("code") or "").strip()
+        b_code = str((b_doc or base).get("code") or "").strip()
+        sido = str(base.get("region_1depth_name") or "").strip()
+        sigungu = str(base.get("region_2depth_name") or "").strip()
+        dong = _normalize_dong_name(str(base.get("region_3depth_name") or "").strip())
+        if not h_code or not sido or not sigungu:
+            return None
+        # 복지로·도서관 API는 '성남시 분당구' 같은 경우 공백 앞 시명 또는 전체 시군구명 중 일치하는 값을 사용
+        sgg_cd = f"{h_code[:5]}00000"
+        return {
+            "sido": sido,
+            "sigungu": sigungu,
+            "sggCd": sgg_cd,
+            "admCd": h_code,
+            "stdgCd": b_code or h_code,
+            "dong": dong,
+            "lng": lng,
+            "lat": lat,
+        }
+    except Exception:
+        return None
+
+
+async def sync_gu_on_demand(
+    db: AsyncDatabase,
+    *,
+    query: str | None = None,
+    lat: float | None = None,
+    lng: float | None = None,
+) -> dict:
+    """전국 어느 자치구·동이든 지역명 또는 GPS 좌표로 실시간 공공 API 동기화 및 격차 지수 재산출."""
+    if not settings.data_go_kr_key or not settings.kakao_api_key:
+        raise ValueError("전국 지역 온디맨드 동기화를 위해 DATA_GO_KR_KEY와 KAKAO_API_KEY가 필요합니다.")
+
+    async with httpx.AsyncClient() as client:
+        resolved: dict | None = None
+        if lat is not None and lng is not None:
+            resolved = await kakao_coord_to_full_region(client, lng, lat)
+        elif query and query.strip():
+            q = query.strip()
+            geo = await kakao_geocode(client, f"{q} 구청") if q.endswith("구") else None
+            if not geo:
+                geo = await kakao_geocode(client, q)
+            if geo:
+                resolved = await kakao_coord_to_full_region(client, geo[0], geo[1])
+
+        if not resolved:
+            raise ValueError("입력한 지역명이나 좌표에서 행정구역을 찾을 수 없습니다.")
+
+        sido = resolved["sido"]
+        sigungu = resolved["sigungu"]
+        sgg_cd = resolved["sggCd"]
+        target_adm_cd = resolved["admCd"]
+        target_stdg_cd = resolved["stdgCd"]
+        sgg_prefix = sgg_cd[:5]
+
+        # 1) 이미 해당 시군구(5자리 코드)가 실데이터로 적재되어 있으면 즉시 반환 (캐시 히트)
+        existing_gu_dongs = [
+            d
+            async for d in db["region_stats"].find(
+                {"admCd": {"$regex": f"^{sgg_prefix}"}, "dataSource": "public_api"}
+            )
+        ]
+        if existing_gu_dongs:
+            matched = next(
+                (d for d in existing_gu_dongs if d["admCd"] == target_adm_cd),
+                existing_gu_dongs[0],
+            )
+            return {
+                "status": "cached",
+                "sido": sido,
+                "sigungu": sigungu,
+                "targetAdmCd": matched["admCd"],
+                "targetDong": matched["dong"],
+                "addedRegions": 0,
+                "totalRegionsInGu": len(existing_gu_dongs),
+            }
+
+        # 2) 미등록 자치구 -> 해당 시군구의 모든 행정동 실데이터를 9종 공공 API로 즉시 수집
+        async with _sync_lock:
+            api_key = unquote(settings.data_go_kr_key.strip())
+            now = datetime.now(UTC)
+
+            (
+                (ym, new_dongs),
+                hh_map,
+                bokjiro_cnt,
+                fclt_cnt,
+                lib_cnt,
+                culture_cnt,
+            ) = await asyncio.gather(
+                fetch_mois_gu_populations(client, api_key, sido, sigungu, target_adm_cd),
+                fetch_mois_gu_households(client, api_key, target_stdg_cd),
+                sync_bokjiro_local(client, db, api_key, sido, sigungu, sgg_cd),
+                sync_welfare_facilities(client, db, api_key, sido, sigungu, sgg_cd, max_details=25),
+                sync_public_libraries(client, db, api_key, sido, sigungu, sgg_cd),
+                sync_culture_facilities(client, db, api_key, sido, sigungu, sgg_cd),
+            )
+
+            if not new_dongs:
+                raise ValueError(f"{sido} {sigungu}의 행정안전부 주민등록 인구 데이터를 불러오지 못했습니다.")
+
+            for d in new_dongs:
+                base_dong = re.sub(r"\d+동$", "동", d["dong"])
+                hh_nmpr = hh_map.get(d["dong"]) or hh_map.get(base_dong)
+                if hh_nmpr and hh_nmpr < 2.2:
+                    single_hh_boost = min(0.08, (2.2 - hh_nmpr) * 0.09)
+                    d["population"]["vulnerableRatio"] = round(
+                        min(0.45, d["population"]["vulnerableRatio"] + single_hh_boost),
+                        4,
+                    )
+
+            geo_sem = asyncio.Semaphore(6)
+
+            async def _locate_dong(d: dict) -> dict | None:
+                async with geo_sem:
+                    geo = await kakao_geocode(client, f"{d['sido']} {d['sigungu']} {d['dong']} 주민센터")
+                    if not geo:
+                        geo = await kakao_geocode(client, f"{d['sido']} {d['sigungu']} {d['dong']}")
+                    if not geo:
+                        return None
+                    d["center"] = {"type": "Point", "coordinates": [geo[0], geo[1]]}
+                    return d
+
+            located_new = [d for d in await asyncio.gather(*(_locate_dong(d) for d in new_dongs)) if d is not None]
+
+            kakao_sem = asyncio.Semaphore(4)
+
+            async def _kakao_dong(d: dict) -> int:
+                async with kakao_sem:
+                    res = await sync_kakao_community_facilities_for_dong(client, db, d)
+                    return int(res.get("upserted", 0))
+
+            kakao_counts = await asyncio.gather(*(_kakao_dong(d) for d in located_new))
+
+            # 동별 생활권 공급 수 집계
+            for d in located_new:
+                adm_cd = d["admCd"]
+                dlng, dlat = d["center"]["coordinates"]
+                counts = {"welfare": 0, "education": 0, "culture": 0}
+                seen_ids: set[str] = set()
+
+                async for p in db["programs"].find({"region.admCd": adm_cd}, {"_id": 1, "category": 1}):
+                    pid = str(p["_id"])
+                    if pid not in seen_ids and p.get("category") in counts:
+                        seen_ids.add(pid)
+                        counts[p["category"]] += 1
+
+                near_pipe = [
+                    {
+                        "$geoNear": {
+                            "near": {"type": "Point", "coordinates": [dlng, dlat]},
+                            "distanceField": "distM",
+                            "maxDistance": 1300,
+                            "spherical": True,
+                        }
+                    },
+                    {"$project": {"_id": 1, "category": 1}},
+                ]
+                cursor = await db["programs"].aggregate(near_pipe)
+                async for p in cursor:
+                    pid = str(p["_id"])
+                    if pid not in seen_ids and p.get("category") in counts:
+                        seen_ids.add(pid)
+                        counts[p["category"]] += 1
+
+                d["supply"] = {
+                    "welfare": counts["welfare"],
+                    "education": counts["education"],
+                    "culture": counts["culture"],
+                    "total": sum(counts.values()),
+                }
+
+            ym_label = f"{ym[:4]}.{ym[4:]}" if ym and len(ym) == 6 else "최신"
+            source_notes = [
+                f"행정안전부 행정동별 성/연령별 주민등록 인구수 ({ym_label})",
+                f"행정안전부 주민등록 인구 및 세대현황 ({ym_label})",
+                "한국사회보장정보원 지자체·중앙부처 복지서비스 상세 API",
+                "한국사회보장정보원 사회복지시설정보서비스 API",
+                "행정안전부 전국도서관표준데이터 API",
+                "한국문화정보원 전국문화기반시설총람 API",
+                "카카오 로컬 장소 API",
+            ]
+
+            # 기존 public_api 행정동과 합쳐 전체 권역 기준으로 격차 지수 동적 재정규화
+            existing_all: dict[str, dict] = {}
+            async for doc in db["region_stats"].find({"dataSource": "public_api"}):
+                doc.pop("_id", None)
+                existing_all[doc["admCd"]] = doc
+
+            for d in located_new:
+                existing_all[d["admCd"]] = {
+                    "admCd": d["admCd"],
+                    "sido": d["sido"],
+                    "sigungu": d["sigungu"],
+                    "dong": d["dong"],
+                    "center": d["center"],
+                    "population": d["population"],
+                    "supply": d["supply"],
+                    "dataSource": "public_api",
+                    "statsYm": d.get("statsYm") or ym,
+                    "sourceNotes": source_notes,
+                    "updatedAt": now,
+                }
+
+            rescored = compute_region_scores(list(existing_all.values()))
+            ops = [
+                UpdateOne({"admCd": doc["admCd"]}, {"$set": doc}, upsert=True)
+                for doc in rescored
+            ]
+            if ops:
+                await db["region_stats"].bulk_write(ops, ordered=False)
+
+            matched_new = next(
+                (d for d in located_new if d["admCd"] == target_adm_cd),
+                located_new[0],
+            )
+            return {
+                "status": "synced",
+                "sido": sido,
+                "sigungu": sigungu,
+                "targetAdmCd": matched_new["admCd"],
+                "targetDong": matched_new["dong"],
+                "addedRegions": len(located_new),
+                "bokjiroLocal": bokjiro_cnt,
+                "welfareFacilities": fclt_cnt,
+                "libraries": lib_cnt,
+                "cultureFacilities": culture_cnt,
+                "kakaoFacilities": sum(kakao_counts),
+            }
 
 
 async def main() -> None:

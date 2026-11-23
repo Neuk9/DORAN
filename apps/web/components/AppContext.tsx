@@ -4,6 +4,7 @@ import React, { createContext, useCallback, useContext, useEffect, useRef, useSt
 import Link from "next/link";
 import {
   addSavedProgram,
+  discoverRegion,
   fetchNearestRegion,
   fetchRegions,
   fetchSavedChecklist,
@@ -26,6 +27,9 @@ interface ToastState {
 
 interface AppContextValue {
   regions: RegionStat[];
+  refreshRegions: () => Promise<RegionStat[]>;
+  discoverAndSelectRegion: (query: string) => Promise<string | null>;
+  discoveringRegion: boolean;
   selectedAdmCd: string;
   setSelectedAdmCd: (admCd: string) => void;
   selectedRegion: RegionStat | undefined;
@@ -70,6 +74,7 @@ function getOrCreateSessionId(): string {
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [regions, setRegions] = useState<RegionStat[]>([]);
+  const [discoveringRegion, setDiscoveringRegion] = useState(false);
   const [selectedAdmCd, setSelectedAdmCdState] = useState<string>(DEFAULT_ADM_CD);
   const [userCoords, setUserCoords] = useState<GpsLocation | null>(null);
   const [locating, setLocating] = useState(false);
@@ -122,11 +127,52 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       .catch(() => setSavedItems([]));
   }, []);
 
+  const refreshRegions = useCallback(async (): Promise<RegionStat[]> => {
+    try {
+      const list = await fetchRegions();
+      setRegions(list);
+      return list;
+    } catch {
+      return [];
+    }
+  }, []);
+
   const setSelectedAdmCd = useCallback((admCd: string) => {
     setSelectedAdmCdState(admCd);
     setUserCoords(null);
     window.localStorage.setItem("doran_adm_cd", admCd);
   }, []);
+
+  const discoverAndSelectRegion = useCallback(
+    async (query: string): Promise<string | null> => {
+      const trimmed = query.trim();
+      if (!trimmed) return null;
+      setDiscoveringRegion(true);
+      showToast({ message: `'${trimmed}' 공공데이터(인구·복지·시설)를 불러오는 중이에요…` });
+      try {
+        const res = await discoverRegion({ query: trimmed });
+        await refreshRegions();
+        setSelectedAdmCdState(res.targetAdmCd);
+        setUserCoords(null);
+        window.localStorage.setItem("doran_adm_cd", res.targetAdmCd);
+        showToast({
+          message:
+            res.status === "synced"
+              ? `${res.sigungu} ${res.addedRegions}개 행정동 실데이터를 연동했어요.`
+              : `${res.sigungu} ${res.targetDong}으로 이동했어요.`,
+        });
+        return res.targetAdmCd;
+      } catch (err) {
+        showToast({
+          message: err instanceof Error ? err.message : "해당 지역 데이터를 불러오지 못했어요.",
+        });
+        return null;
+      } finally {
+        setDiscoveringRegion(false);
+      }
+    },
+    [refreshRegions, showToast],
+  );
 
   const locateMe = useCallback(async (): Promise<GpsLocation | null> => {
     if (typeof window === "undefined" || !("geolocation" in navigator)) {
@@ -153,10 +199,31 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           ? `${nearest.actualRegion.sigungu} ${nearest.actualRegion.dong}`.trim()
           : `${nearest.region.sigungu} ${nearest.region.dong}`;
 
-        if (nearest.inServiceArea) {
+        const actualAdm = nearest.actualRegion?.admCd;
+        const alreadyLoaded = Boolean(actualAdm && regions.some((r) => r.admCd === actualAdm));
+
+        if (actualAdm && !alreadyLoaded) {
+          // 전국 온디맨드 자동 확장: 현재 GPS 위치의 자치구가 DB에 없으면 공공 API로 실시간 적재
+          showToast({ message: `${actualName} 공공데이터를 실시간으로 불러오고 있어요…` });
+          try {
+            const discovered = await discoverRegion({ lat, lng });
+            await refreshRegions();
+            setSelectedAdmCdState(discovered.targetAdmCd);
+            window.localStorage.setItem("doran_adm_cd", discovered.targetAdmCd);
+          } catch {
+            if (nearest.inServiceArea) {
+              setSelectedAdmCdState(nearest.region.admCd);
+              window.localStorage.setItem("doran_adm_cd", nearest.region.admCd);
+            }
+          }
+        } else if (actualAdm) {
+          setSelectedAdmCdState(actualAdm);
+          window.localStorage.setItem("doran_adm_cd", actualAdm);
+        } else if (nearest.inServiceArea) {
           setSelectedAdmCdState(nearest.region.admCd);
           window.localStorage.setItem("doran_adm_cd", nearest.region.admCd);
         }
+
         const nextLoc: GpsLocation = {
           lat,
           lng,
@@ -180,7 +247,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setLocating(false);
     }
-  }, [showToast]);
+  }, [regions, refreshRegions, showToast]);
 
   const toggleLargeText = useCallback(() => {
     setLargeText((prev) => {
@@ -273,6 +340,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     <AppContext.Provider
       value={{
         regions,
+        refreshRegions,
+        discoverAndSelectRegion,
+        discoveringRegion,
         selectedAdmCd,
         setSelectedAdmCd,
         selectedRegion,

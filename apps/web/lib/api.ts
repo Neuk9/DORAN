@@ -92,6 +92,26 @@ export async function triggerPublicSync(): Promise<Record<string, unknown>> {
   });
 }
 
+export interface DiscoverRegionResponse {
+  status: "cached" | "synced";
+  sido: string;
+  sigungu: string;
+  targetAdmCd: string;
+  targetDong: string;
+  addedRegions: number;
+}
+
+export async function discoverRegion(payload: {
+  query?: string;
+  lat?: number;
+  lng?: number;
+}): Promise<DiscoverRegionResponse> {
+  return requestJson<DiscoverRegionResponse>("/api/regions/discover", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function postChatRecommend(payload: {
   message: string;
   admCd?: string;

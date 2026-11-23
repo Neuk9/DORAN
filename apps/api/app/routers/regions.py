@@ -1,13 +1,38 @@
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel
 
 from app.core.config import settings
 from app.core.db import get_db
-from app.ingest.sync_public import sync_all_public_data
+from app.ingest.sync_public import sync_all_public_data, sync_gu_on_demand
 from app.models.schemas import ApiResponse, RegionStatOut
 from app.services.gap import build_region_report
 from app.services.kakao_places import reverse_geocode
 
 router = APIRouter(prefix="/api/regions", tags=["regions"])
+
+
+class RegionDiscoverRequest(BaseModel):
+    query: str | None = None
+    lat: float | None = None
+    lng: float | None = None
+
+
+@router.post("/discover", response_model=ApiResponse)
+async def discover_region(body: RegionDiscoverRequest) -> ApiResponse:
+    """전국 어느 자치구·동이든 지역명 또는 GPS 좌표로 실시간 공공 API 동기화 후 격차 리포트를 준비합니다."""
+    if not body.query and (body.lat is None or body.lng is None):
+        raise HTTPException(status_code=400, detail="지역명(query) 또는 좌표(lat, lng)를 입력해 주세요.")
+    if not settings.data_go_kr_key or not settings.kakao_api_key:
+        raise HTTPException(
+            status_code=503,
+            detail="전국 지역 실시간 동기화를 위해 서버에 DATA_GO_KR_KEY와 KAKAO_API_KEY가 필요합니다.",
+        )
+    db = get_db()
+    try:
+        result = await sync_gu_on_demand(db, query=body.query, lat=body.lat, lng=body.lng)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return ApiResponse(data=result, meta={"discovered": True})
 
 
 @router.post("/sync", response_model=ApiResponse)
