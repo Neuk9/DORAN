@@ -1,17 +1,37 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BarChart3, Bookmark, Compass, Search } from "lucide-react";
 import { useApp } from "./AppContext";
+import { BrandMark } from "./BrandMark";
 import { CompareTrayAndModal } from "./CompareTrayAndModal";
 
 export function LayoutShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { selectedAdmCd, savedItems } = useApp();
+  const [transitioning, setTransitioning] = useState(false);
+  const previousPathRef = useRef(pathname);
+
+  useEffect(() => {
+    const start = () => {
+      setTransitioning(true);
+      window.setTimeout(() => setTransitioning(false), 2600);
+    };
+    window.addEventListener("doran:route-transition", start);
+    return () => window.removeEventListener("doran:route-transition", start);
+  }, []);
+
+  useEffect(() => {
+    if (previousPathRef.current === pathname) return;
+    previousPathRef.current = pathname;
+    const timer = window.setTimeout(() => setTransitioning(false), 340);
+    return () => window.clearTimeout(timer);
+  }, [pathname]);
 
   const mobileTabs = [
-    { href: "/", label: "AI 검색", icon: Search },
+    { href: "/", label: "맞춤", icon: Search },
     { href: "/explore", label: "탐색", icon: Compass },
     { href: `/report/${selectedAdmCd}`, label: "격차", icon: BarChart3 },
     { href: "/saved", label: "저장", icon: Bookmark, badge: savedItems.length },
@@ -19,7 +39,10 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
 
   return (
     <>
-      <main className="mx-auto w-full max-w-[1360px] px-4 py-7 pb-28 sm:px-6 md:py-10 md:pb-16 lg:px-8">
+      <main
+        key={pathname}
+        className="mx-auto w-full max-w-[1360px] animate-page-in px-4 py-7 pb-28 sm:px-6 md:py-10 md:pb-16 lg:px-8"
+      >
         {children}
       </main>
 
@@ -27,10 +50,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
         <div className="mx-auto flex max-w-[1360px] flex-col justify-between gap-6 px-5 sm:flex-row sm:items-end sm:px-6 lg:px-8">
           <div className="space-y-1.5">
             <div className="flex items-center gap-2">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <circle cx="9.5" cy="12" r="6.5" fill="#0f5c57" />
-                <circle cx="16.5" cy="12" r="4.5" fill="#c85a32" fillOpacity="0.88" />
-              </svg>
+              <BrandMark className="h-6 w-6" />
               <span className="text-base font-extrabold tracking-tight text-ink">도란도란</span>
               <span className="text-xs font-medium text-faint">DORAN</span>
             </div>
@@ -45,7 +65,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
           <div className="flex flex-col items-start gap-2 text-xs text-subtle sm:items-end">
             <div className="flex items-center gap-4 font-semibold text-muted">
               <Link href="/" className="hover:text-brand">
-                AI 검색
+                맞춤 검색
               </Link>
               <Link href="/explore" className="hover:text-brand">
                 전체 탐색
@@ -103,6 +123,23 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
       </nav>
 
       <CompareTrayAndModal />
+
+      {/* 페이지 전환 오버레이 */}
+      <div
+        aria-hidden="true"
+        className={`fixed inset-0 z-[90] flex flex-col items-center justify-center bg-canvas/92 backdrop-blur-sm transition-opacity duration-300 ${
+          transitioning ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
+        }`}
+      >
+        <div className="relative flex h-20 w-20 items-center justify-center">
+          <span
+            aria-hidden="true"
+            className="absolute h-28 w-28 rounded-full bg-[#a855f7]/25 blur-2xl"
+          />
+          <BrandMark className="relative h-[72px] w-[72px] drop-shadow-[0_18px_36px_rgba(168,85,247,0.35)]" />
+        </div>
+        <p className="mt-4 text-sm font-bold text-ink">잠시만요, 화면을 여는 중이에요</p>
+      </div>
     </>
   );
 }

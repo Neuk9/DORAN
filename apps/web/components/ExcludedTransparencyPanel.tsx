@@ -35,7 +35,7 @@ export function ExcludedTransparencyPanel({
               <span className="text-rose-600">{totalExcludedCount}건 자동 제외</span>
             </p>
             <p className="mt-1 text-sm text-subtle">
-              AI 추측에 맡기지 않고 연령·거주지·마감일 규칙으로 자격이 안 되는 사업을 사전에 걸러냈습니다.
+              감이나 추측에 맡기지 않고 연령·거주지·마감일 규칙으로 자격이 안 되는 사업을 사전에 걸러냈습니다.
             </p>
           </div>
         </div>

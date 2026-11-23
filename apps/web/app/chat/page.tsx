@@ -2,7 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { AlertTriangle, PhoneCall, Send, ShieldCheck, SlidersHorizontal, Sparkles } from "lucide-react";
+import { AlertTriangle, ListChecks, PhoneCall, Send, ShieldCheck, SlidersHorizontal } from "lucide-react";
 import { useApp } from "@/components/AppContext";
 import { PageHeader } from "@/components/PageHeader";
 import { ProgramCard } from "@/components/ProgramCard";
@@ -95,7 +95,7 @@ function ChatContent() {
             원문 미저장 · PII 자동 보호
           </span>
         }
-        title="AI 맞춤형 공공자원 상담"
+        title="맞춤형 공공자원 상담"
         description="거주지, 연령, 상황, 원하는 도움을 일상 말로 적어주세요. 전화번호·주민번호 등은 자동 마스킹되며 원문은 저장되지 않습니다."
       />
 
@@ -192,7 +192,7 @@ function ChatContent() {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2 text-sm font-bold text-brand-strong">
               <SlidersHorizontal className="h-4 w-4" />
-              <span>AI가 추출한 조건 (칩을 눌러 바로 재검색할 수 있습니다)</span>
+              <span>정리된 상담 조건 (칩을 눌러 바로 재검색할 수 있습니다)</span>
             </div>
             <span className="text-xs font-medium text-brand">엔진: {result.provider} + 결정론 룰</span>
           </div>
@@ -258,7 +258,7 @@ function ChatContent() {
       {result && !result.crisis ? (
         <section className="space-y-4">
           <div className="flex items-center gap-2 text-sm font-semibold text-muted">
-            <Sparkles className="h-4 w-4 text-brand" />
+            <ListChecks className="h-4 w-4 text-brand" />
             <span>{result.summaryMessage}</span>
           </div>
 

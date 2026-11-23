@@ -10,6 +10,7 @@ import {
   type HiddenGem,
   type RecommendedProgram,
 } from "@/lib/types";
+import { isMapLink } from "@/lib/url";
 
 interface BenefitPlanPanelProps {
   summaryMessage?: string;
@@ -47,7 +48,7 @@ export function BenefitPlanPanel({
 
   return (
     <section className="overflow-hidden rounded-2xl border border-line bg-surface shadow-card">
-      {/* 상단: AI 답변 + 핵심 혜택 수치 */}
+      {/* 상단: 맞춤 분석 요약 + 핵심 혜택 수치 */}
       <div className="px-6 py-6 sm:px-7 sm:py-7">
         <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-start">
           <div className="max-w-3xl space-y-2.5">
@@ -109,6 +110,10 @@ export function BenefitPlanPanel({
                   program.location?.coordinates?.length === 2
                     ? `https://map.kakao.com/link/to/${encodeURIComponent(program.title)},${program.location.coordinates[1]},${program.location.coordinates[0]}`
                     : null;
+                const applyUrl =
+                  program.applyInfo.url && !isMapLink(program.applyInfo.url)
+                    ? program.applyInfo.url
+                    : null;
 
                 return (
                   <div
@@ -130,9 +135,9 @@ export function BenefitPlanPanel({
                     </button>
 
                     <div className="flex shrink-0 flex-wrap items-center gap-1.5">
-                      {program.applyInfo.url ? (
+                      {applyUrl ? (
                         <a
-                          href={program.applyInfo.url}
+                          href={applyUrl}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-1 rounded-lg bg-brand px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-brand-strong"
@@ -166,7 +171,7 @@ export function BenefitPlanPanel({
                         </button>
                       ) : null}
 
-                      {!program.applyInfo.url && program.applyInfo.phone ? (
+                      {!applyUrl && program.applyInfo.phone ? (
                         <a
                           href={`tel:${program.applyInfo.phone}`}
                           className="inline-flex items-center gap-1 rounded-lg bg-ink px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-brand"

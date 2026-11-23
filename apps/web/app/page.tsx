@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
+  ArrowDown,
   ArrowRight,
   BarChart3,
   Bookmark,
@@ -31,7 +32,10 @@ import { ExcludedTransparencyPanel } from "@/components/ExcludedTransparencyPane
 import type { MapAnchor } from "@/components/InteractiveAIMap";
 import { OfficerGuideModal } from "@/components/OfficerGuideModal";
 import { ProgramDetailDrawer } from "@/components/ProgramDetailDrawer";
+import { RouteTransitionLink } from "@/components/RouteTransitionLink";
+import { ScrollSnapToSection } from "@/components/ScrollSnapToSection";
 import { fetchPrograms, postChatRecommend } from "@/lib/api";
+import { isMapLink } from "@/lib/url";
 import {
   CATEGORY_LABELS,
   COST_LABELS,
@@ -45,44 +49,23 @@ import {
   type UserProfile,
 } from "@/lib/types";
 
-const InteractiveAIMap = dynamic(() => import("@/components/InteractiveAIMap"), {
-  ssr: false,
-  loading: () => (
-    <div className="flex h-full min-h-[460px] w-full items-center justify-center rounded-2xl bg-fill text-sm text-subtle">
-      지도를 준비하고 있습니다…
-    </div>
-  ),
-});
+const InteractiveAIMap = dynamic(
+  () => import("@/components/InteractiveAIMap"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-full min-h-[460px] w-full items-center justify-center rounded-2xl bg-fill text-sm text-subtle">
+        지도를 준비하고 있습니다…
+      </div>
+    ),
+  },
+);
 
 const ROTATING_PLACEHOLDERS = [
   "예: 서울 구로구에 사는 20대 대학생인데, 주말에 무료로 악기를 배울 수 있는 곳이나 청년 지원금이 있을까?",
   "예: 가리봉동에 혼자 사는 70세 어르신인데 돌봄 서비스나 무료 스마트폰 교실이 궁금해요",
   "예: 개봉동 맞벌이 가족인데 아이돌봄 서비스나 주말에 아이와 갈 도서관 프로그램 알려줘",
   "예: 저소득 가구인데 난방비 바우처나 문화누리카드 혜택을 받을 수 있을까요?",
-];
-
-const EXAMPLE_CARDS = [
-  {
-    tag: "청년 · 문화·복지",
-    title: "주말에 무료로 악기 배울 곳이나 청년 지원금",
-    query:
-      "서울 구로구에 사는 20대 대학생인데, 주말에 무료로 악기를 배울 수 있는 곳이나 청년 지원금이 있을까?",
-  },
-  {
-    tag: "어르신 · 돌봄·교육",
-    title: "독거 어르신 돌봄 서비스와 무료 스마트폰 교실",
-    query: "가리봉동에 사는 70세 독거 어르신인데 돌봄 서비스나 무료 스마트폰 교육이 궁금해요",
-  },
-  {
-    tag: "저소득 · 생활지원",
-    title: "난방비 바우처와 문화누리카드 신청 가능 여부",
-    query: "저소득 가구인데 난방비 지원이나 문화누리카드 같은 혜택을 받을 수 있나요?",
-  },
-  {
-    tag: "가족 · 아동돌봄",
-    title: "맞벌이 가정 아이돌봄과 주말 어린이 도서관",
-    query: "개봉동 맞벌이 가족인데 아이돌봄 서비스나 주말 어린이 도서관 프로그램 있을까요?",
-  },
 ];
 
 const AGE_PRESETS = [
@@ -161,14 +144,21 @@ export default function HomeAISearchPage() {
   const [resultTab, setResultTab] = useState<"all" | "map" | "online">("all");
   const [sortBy, setSortBy] = useState<SortKey>("relevance");
 
-  const [pendingPin, setPendingPin] = useState<{ lat: number; lng: number } | null>(null);
+  const [pendingPin, setPendingPin] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
 
   const [basePrograms, setBasePrograms] = useState<Program[]>([]);
   const [aiResult, setAiResult] = useState<ChatRecommendResponse | null>(null);
-  const [editableProfile, setEditableProfile] = useState<UserProfile | null>(null);
+  const [editableProfile, setEditableProfile] = useState<UserProfile | null>(
+    null,
+  );
   const [drawerProgramId, setDrawerProgramId] = useState<string | null>(null);
   const [hoveredProgramId, setHoveredProgramId] = useState<string | null>(null);
-  const [focusedMapProgramId, setFocusedMapProgramId] = useState<string | null>(null);
+  const [focusedMapProgramId, setFocusedMapProgramId] = useState<string | null>(
+    null,
+  );
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -213,7 +203,11 @@ export default function HomeAISearchPage() {
 
   const anchor: MapAnchor = useMemo(() => {
     if (userCoords) {
-      return { lat: userCoords.lat, lng: userCoords.lng, label: userCoords.label };
+      return {
+        lat: userCoords.lat,
+        lng: userCoords.lng,
+        label: userCoords.label,
+      };
     }
     if (selectedRegion) {
       return {
@@ -256,10 +250,14 @@ export default function HomeAISearchPage() {
         });
         setAiResult(data);
         setEditableProfile(data.profile || null);
-        const firstLocated = data.recommendations.find((r) => r.program.location);
+        const firstLocated = data.recommendations.find(
+          (r) => r.program.location,
+        );
         setFocusedMapProgramId(firstLocated?.program.id || null);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "검색 중 오류가 발생했습니다.");
+        setError(
+          err instanceof Error ? err.message : "검색 중 오류가 발생했습니다.",
+        );
       } finally {
         setLoading(false);
       }
@@ -291,9 +289,13 @@ export default function HomeAISearchPage() {
       SpeechRecognition?: new () => SpeechRecognitionLike;
       webkitSpeechRecognition?: new () => SpeechRecognitionLike;
     };
-    const RecognitionCtor = win.SpeechRecognition || win.webkitSpeechRecognition;
+    const RecognitionCtor =
+      win.SpeechRecognition || win.webkitSpeechRecognition;
     if (!RecognitionCtor) {
-      showToast({ message: "이 브라우저에서는 음성 입력을 지원하지 않아요. 크롬·사파리에서 이용해 보세요." });
+      showToast({
+        message:
+          "이 브라우저에서는 음성 입력을 지원하지 않아요. 크롬·사파리에서 이용해 보세요.",
+      });
       return;
     }
 
@@ -341,13 +343,24 @@ export default function HomeAISearchPage() {
             "마이크 권한이 차단되어 있어요. 브라우저 주소창 권한과 macOS 받아쓰기(Dictation) 설정을 확인해 주세요.",
         });
       } else if (code === "audio-capture") {
-        showToast({ message: "연결된 마이크를 찾을 수 없어요. 시스템 사운드 입력 설정을 확인해 주세요." });
+        showToast({
+          message:
+            "연결된 마이크를 찾을 수 없어요. 시스템 사운드 입력 설정을 확인해 주세요.",
+        });
       } else if (code === "no-speech") {
-        showToast({ message: "목소리가 감지되지 않았어요. 마이크 가까이서 다시 말씀해 주세요." });
+        showToast({
+          message:
+            "목소리가 감지되지 않았어요. 마이크 가까이서 다시 말씀해 주세요.",
+        });
       } else if (code === "network") {
-        showToast({ message: "음성 인식 서버 연결에 실패했어요. 네트워크 상태를 확인해 주세요." });
+        showToast({
+          message:
+            "음성 인식 서버 연결에 실패했어요. 네트워크 상태를 확인해 주세요.",
+        });
       } else {
-        showToast({ message: `음성 인식 중 오류가 발생했어요${code ? ` (${code})` : ""}. 다시 시도해 주세요.` });
+        showToast({
+          message: `음성 인식 중 오류가 발생했어요${code ? ` (${code})` : ""}. 다시 시도해 주세요.`,
+        });
       }
     };
 
@@ -358,7 +371,9 @@ export default function HomeAISearchPage() {
       if (finalText && !voiceErrorRef.current) {
         void runSearch(finalText);
       } else if (!finalText && !voiceErrorRef.current) {
-        showToast({ message: "인식된 음성이 없어요. 다시 누르고 또박또박 말씀해 주세요." });
+        showToast({
+          message: "인식된 음성이 없어요. 다시 누르고 또박또박 말씀해 주세요.",
+        });
       }
     };
 
@@ -369,14 +384,19 @@ export default function HomeAISearchPage() {
     } catch {
       setListening(false);
       recognitionRef.current = null;
-      showToast({ message: "음성 인식을 시작할 수 없어요. 잠시 후 다시 시도해 주세요." });
+      showToast({
+        message: "음성 인식을 시작할 수 없어요. 잠시 후 다시 시도해 주세요.",
+      });
     }
   };
 
   const handleLocateMe = async () => {
     const loc = await locateMe();
     if (loc && query.trim() && aiResult && !aiResult.crisis) {
-      void runSearch(query, { pin: { lat: loc.lat, lng: loc.lng }, skipHistory: true });
+      void runSearch(query, {
+        pin: { lat: loc.lat, lng: loc.lng },
+        skipHistory: true,
+      });
     }
   };
 
@@ -395,7 +415,12 @@ export default function HomeAISearchPage() {
   const confirmPendingLocation = () => {
     if (!pendingPin) return;
     const nextPin = pendingPin;
-    setUserCoords({ lat: nextPin.lat, lng: nextPin.lng, label: "지도에서 지정한 위치", source: "pin" });
+    setUserCoords({
+      lat: nextPin.lat,
+      lng: nextPin.lng,
+      label: "지도에서 지정한 위치",
+      source: "pin",
+    });
     setPendingPin(null);
     if (query.trim() && aiResult) {
       void runSearch(query, { pin: nextPin, skipHistory: true });
@@ -420,14 +445,23 @@ export default function HomeAISearchPage() {
       : [...editableProfile.categories, cat];
     const nextProfile = { ...editableProfile, categories: nextCategories };
     setEditableProfile(nextProfile);
-    void runSearch(query || "조건 재검색", { overrideProfile: nextProfile, skipHistory: true });
+    void runSearch(query || "조건 재검색", {
+      overrideProfile: nextProfile,
+      skipHistory: true,
+    });
   };
 
   const toggleFreeChip = () => {
     if (!editableProfile) return;
-    const nextProfile = { ...editableProfile, preferFree: !editableProfile.preferFree };
+    const nextProfile = {
+      ...editableProfile,
+      preferFree: !editableProfile.preferFree,
+    };
     setEditableProfile(nextProfile);
-    void runSearch(query || "조건 재검색", { overrideProfile: nextProfile, skipHistory: true });
+    void runSearch(query || "조건 재검색", {
+      overrideProfile: nextProfile,
+      skipHistory: true,
+    });
   };
 
   const applyAgePreset = (age: number, groups: string[]) => {
@@ -438,7 +472,10 @@ export default function HomeAISearchPage() {
       targetGroups: groups,
     };
     setEditableProfile(nextProfile);
-    void runSearch(query || "조건 재검색", { overrideProfile: nextProfile, skipHistory: true });
+    void runSearch(query || "조건 재검색", {
+      overrideProfile: nextProfile,
+      skipHistory: true,
+    });
   };
 
   const handleSelectRegionFromMap = useCallback(
@@ -458,7 +495,10 @@ export default function HomeAISearchPage() {
     () =>
       recommendations.length > 0
         ? recommendations.map((r) => ({ program: r.program, rec: r }))
-        : basePrograms.map((p) => ({ program: p, rec: null as RecommendedProgram | null })),
+        : basePrograms.map((p) => ({
+            program: p,
+            rec: null as RecommendedProgram | null,
+          })),
     [recommendations, basePrograms],
   );
 
@@ -471,10 +511,14 @@ export default function HomeAISearchPage() {
           : [...allItems];
 
     if (sortBy === "distance") {
-      filtered.sort((a, b) => (a.program.distanceKm ?? 999) - (b.program.distanceKm ?? 999));
+      filtered.sort(
+        (a, b) => (a.program.distanceKm ?? 999) - (b.program.distanceKm ?? 999),
+      );
     } else if (sortBy === "deadline") {
       const deadlineTs = (p: Program) =>
-        p.isAlwaysOpen || !p.deadline ? Number.POSITIVE_INFINITY : new Date(p.deadline).getTime();
+        p.isAlwaysOpen || !p.deadline
+          ? Number.POSITIVE_INFINITY
+          : new Date(p.deadline).getTime();
       filtered.sort((a, b) => deadlineTs(a.program) - deadlineTs(b.program));
     }
     return filtered;
@@ -530,9 +574,15 @@ export default function HomeAISearchPage() {
                 : "bg-fill text-ink hover:bg-line/70"
             }`}
           >
-            <LocateFixed className={`h-4 w-4 text-brand ${locating ? "animate-spin" : ""}`} />
+            <LocateFixed
+              className={`h-4 w-4 text-brand ${locating ? "animate-spin" : ""}`}
+            />
             <span>
-              {locating ? "위치 확인 중…" : userCoords?.source === "gps" ? "현재 GPS 위치" : "내 위치"}
+              {locating
+                ? "위치 확인 중…"
+                : userCoords?.source === "gps"
+                  ? "현재 GPS 위치"
+                  : "내 위치"}
             </span>
           </button>
 
@@ -559,14 +609,20 @@ export default function HomeAISearchPage() {
             type="button"
             onClick={toggleVoiceInput}
             aria-pressed={listening}
-            aria-label={listening ? "음성 입력 중지" : "한국어 음성으로 질문하기"}
+            aria-label={
+              listening ? "음성 입력 중지" : "한국어 음성으로 질문하기"
+            }
             className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-bold transition-colors ${
               listening
                 ? "animate-pulse bg-accent-soft text-accent ring-1 ring-accent/30"
                 : "bg-fill text-muted hover:text-ink"
             }`}
           >
-            {listening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+            {listening ? (
+              <MicOff className="h-4 w-4" />
+            ) : (
+              <Mic className="h-4 w-4" />
+            )}
             <span>{listening ? "듣는 중…" : "음성"}</span>
           </button>
 
@@ -612,45 +668,39 @@ export default function HomeAISearchPage() {
   const heroYouthPct = selectedRegion
     ? Math.round((selectedRegion.population.youth / heroTotalPop) * 1000) / 10
     : 0;
-  const heroOtherPct = Math.max(0, Math.round((100 - heroSeniorPct - heroYouthPct) * 10) / 10);
 
   return (
     <div className="space-y-12">
+      <ScrollSnapToSection targetId="public-resources" enabled={!hasSearched} />
       {/* ============================================================
           1. 비대칭 에디토리얼 히어로: 좌(자연어 혜택 검색) + 우(우리 동네 실시간 현황)
          ============================================================ */}
       {!hasSearched ? (
-        <section className="grid items-start gap-7 pt-4 lg:grid-cols-[1.45fr_0.95fr] lg:gap-10 lg:pt-8">
-          {/* 좌측: 핵심 검색 영역 */}
-          <div className="min-w-0">
-            <h1 className="text-[30px] font-extrabold leading-[1.22] tracking-[-0.035em] text-ink sm:text-[42px]">
-              내 상황과 위치를 말하면,
-              <br />
-              <span className="text-brand">받을 수 있는 혜택</span>을 찾아드려요
-            </h1>
+        <section
+          id="home-intro"
+          className="flex min-h-[calc(100dvh-9rem)] flex-col pt-0 sm:pt-3"
+        >
+          <div className="flex flex-1 flex-col justify-center">
+            <div className="mx-auto w-full max-w-3xl text-center">
+              <h1 className="text-[32px] font-extrabold leading-[1.2] tracking-[-0.035em] text-ink sm:text-[46px]">
+                내 상황과 위치를 말하면,
+                <br />
+                <span className="text-brand">받을 수 있는 혜택</span>을
+                찾아드려요
+              </h1>
+              <p className="mx-auto mt-3 max-w-2xl text-base leading-relaxed text-muted sm:text-[17px]">
+                복지 제도 이름을 몰라도 괜찮아요. 사는 곳과 상황을 일상 말로
+                적으면 조건에 맞는 혜택과 가까운 시설을 마스터 도란이 한 번에
+                정리해 드려요.
+              </p>
+            </div>
 
-            <div className="mt-7">{composer(true)}</div>
-
-            {/* 빠른 예시 질문 칩 */}
-            <div className="mt-4 flex flex-wrap items-center gap-2">
-              {EXAMPLE_CARDS.map((card) => (
-                <button
-                  key={card.title}
-                  type="button"
-                  onClick={() => {
-                    setQuery(card.query);
-                    void runSearch(card.query);
-                  }}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-3.5 py-1.5 text-xs font-semibold text-ink-soft transition-colors hover:border-brand/50 hover:bg-brand-tint hover:text-brand"
-                >
-                  <span>{card.title}</span>
-                  <ArrowRight className="h-3 w-3 text-faint" />
-                </button>
-              ))}
+            <div className="mx-auto mt-7 w-full max-w-3xl">
+              {composer(true)}
             </div>
 
             {recentQueries.length > 0 ? (
-              <div className="mt-3.5 flex flex-wrap items-center gap-2">
+              <div className="mx-auto mt-3.5 flex w-full max-w-3xl flex-wrap items-center justify-center gap-2">
                 <span className="inline-flex items-center gap-1 text-xs font-semibold text-subtle">
                   <Clock className="h-3.5 w-3.5" />
                   최근
@@ -682,108 +732,119 @@ export default function HomeAISearchPage() {
                 ))}
               </div>
             ) : null}
+
+            {selectedRegion ? (
+              <aside className="mx-auto mt-14 w-full max-w-3xl">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <span className="inline-flex items-center gap-1.5 text-sm font-bold text-ink">
+                    <MapPin className="h-4 w-4 text-brand" />
+                    우리 동네 현황
+                  </span>
+                  <RouteTransitionLink
+                    href={`/report/${selectedAdmCd}`}
+                    className="group inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-bold text-brand transition-colors hover:bg-brand-soft"
+                  >
+                    리포트 보기
+                    <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+                  </RouteTransitionLink>
+                </div>
+
+                <div className="rounded-2xl bg-brand-tint px-5 py-5 ring-1 ring-brand-line/60">
+                  <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-xl font-extrabold tracking-[-0.02em] text-ink">
+                        {selectedRegion.sigungu} {selectedRegion.dong}
+                      </p>
+                      <p className="mt-1 text-xs text-muted">
+                        인구 {selectedRegion.population.total.toLocaleString()}
+                        명 · 어르신 {heroSeniorPct}% · 청년 {heroYouthPct}%
+                      </p>
+                      {selectedRegion.statsYm &&
+                      selectedRegion.statsYm.length === 6 ? (
+                        <p className="mt-0.5 text-[11px] text-faint">
+                          행안부 {selectedRegion.statsYm.slice(0, 4)}.
+                          {selectedRegion.statsYm.slice(4)} 기준
+                        </p>
+                      ) : null}
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="flex items-stretch gap-2">
+                        {[
+                          { label: "복지", val: selectedRegion.supply.welfare },
+                          {
+                            label: "교육",
+                            val: selectedRegion.supply.education,
+                          },
+                          { label: "문화", val: selectedRegion.supply.culture },
+                        ].map((item) => (
+                          <div
+                            key={item.label}
+                            className="min-w-[62px] rounded-xl bg-surface/75 px-3 py-2 text-center ring-1 ring-brand-line/40"
+                          >
+                            <p className="text-[11px] font-semibold text-subtle">
+                              {item.label}
+                            </p>
+                            <p className="text-base font-extrabold text-ink tabular-nums">
+                              {item.val}
+                              <span className="ml-0.5 text-[11px] font-medium text-subtle">
+                                곳
+                              </span>
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="text-right">
+                        <span
+                          className={`inline-block rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
+                            selectedRegion.scores.gapIndex >= 30
+                              ? "bg-accent-soft text-accent"
+                              : selectedRegion.scores.gapIndex > 5
+                                ? "bg-gold-soft text-gold"
+                                : "bg-brand-soft text-brand"
+                          }`}
+                        >
+                          {selectedRegion.scores.gapIndex >= 30
+                            ? "사각지대 우선 지원"
+                            : selectedRegion.scores.gapIndex > 5
+                              ? "보완 필요 권역"
+                              : "생활권 균형"}
+                        </span>
+                        <p className="mt-1 text-xl font-extrabold tracking-[-0.03em] text-ink tabular-nums">
+                          격차{" "}
+                          {selectedRegion.scores.gapIndex > 0
+                            ? `+${selectedRegion.scores.gapIndex}`
+                            : selectedRegion.scores.gapIndex}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </aside>
+            ) : (
+              <div className="mx-auto mt-14 h-[180px] w-full max-w-3xl animate-pulse rounded-2xl bg-brand-tint ring-1 ring-brand-line/60" />
+            )}
           </div>
 
-          {/* 우측: 우리 동네 실시간 현황 벤토 카드 */}
-          {selectedRegion ? (
-            <aside className="flex flex-col justify-between rounded-2xl border border-line bg-surface p-6 shadow-card lg:mt-2">
-              <div>
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-subtle">
-                    <MapPin className="h-3.5 w-3.5 text-brand" />
-                    <span>우리 동네 현황</span>
-                  </div>
-                  {selectedRegion.statsYm && selectedRegion.statsYm.length === 6 ? (
-                    <span className="rounded-full bg-fill px-2.5 py-0.5 text-[11px] font-bold text-muted">
-                      행안부 {selectedRegion.statsYm.slice(0, 4)}.{selectedRegion.statsYm.slice(4)}
-                    </span>
-                  ) : null}
-                </div>
-
-                <div className="mt-3 flex items-baseline justify-between gap-3">
-                  <div>
-                    <p className="text-xl font-extrabold tracking-[-0.02em] text-ink">
-                      {selectedRegion.sigungu} {selectedRegion.dong}
-                    </p>
-                    <p className="mt-0.5 text-xs text-subtle">
-                      인구 {selectedRegion.population.total.toLocaleString()}명
-                    </p>
-                  </div>
-
-                  <div className="text-right">
-                    <span
-                      className={`inline-block rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
-                        selectedRegion.scores.gapIndex >= 30
-                          ? "bg-accent-soft text-accent"
-                          : selectedRegion.scores.gapIndex > 5
-                            ? "bg-gold-soft text-gold"
-                            : "bg-brand-soft text-brand"
-                      }`}
-                    >
-                      {selectedRegion.scores.gapIndex >= 30
-                        ? "사각지대 우선 지원"
-                        : selectedRegion.scores.gapIndex > 5
-                          ? "보완 필요 권역"
-                          : "생활권 균형"}
-                    </span>
-                    <p className="mt-1 text-2xl font-extrabold tracking-[-0.03em] text-ink tabular-nums">
-                      격차{" "}
-                      {selectedRegion.scores.gapIndex > 0
-                        ? `+${selectedRegion.scores.gapIndex}`
-                        : selectedRegion.scores.gapIndex}
-                    </p>
-                  </div>
-                </div>
-
-                {/* 인구 비율 바 */}
-                <div className="mt-5 rounded-xl bg-fill-soft p-3.5">
-                  <div className="mb-2 flex items-center justify-between text-[12px] font-semibold text-muted">
-                    <span>어르신 {heroSeniorPct}%</span>
-                    <span>청년 {heroYouthPct}%</span>
-                    <span>일반 {heroOtherPct}%</span>
-                  </div>
-                  <div className="flex h-2 w-full overflow-hidden rounded-full bg-line">
-                    <div style={{ width: `${heroSeniorPct}%` }} className="bg-accent/80" />
-                    <div style={{ width: `${heroYouthPct}%` }} className="bg-brand" />
-                    <div style={{ width: `${heroOtherPct}%` }} className="bg-line-strong" />
-                  </div>
-                </div>
-
-                {/* 생활권 공급 요약 */}
-                <div className="mt-4 grid grid-cols-3 gap-2">
-                  {[
-                    { label: "복지", val: selectedRegion.supply.welfare },
-                    { label: "교육", val: selectedRegion.supply.education },
-                    { label: "문화", val: selectedRegion.supply.culture },
-                  ].map((item) => (
-                    <div
-                      key={item.label}
-                      className="rounded-xl border border-line bg-canvas/70 px-3 py-2.5 text-center"
-                    >
-                      <p className="text-[11px] font-semibold text-subtle">{item.label}</p>
-                      <p className="mt-0.5 text-base font-extrabold text-ink tabular-nums">
-                        {item.val}
-                        <span className="ml-0.5 text-xs font-medium text-subtle">곳</span>
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <Link
-                href={`/report/${selectedAdmCd}`}
-                className="mt-5 flex items-center justify-between rounded-xl border border-line bg-fill-soft px-4 py-3 text-sm font-bold text-ink transition-colors hover:border-brand/40 hover:bg-brand-tint hover:text-brand"
-              >
-                <span className="inline-flex items-center gap-2">
-                  <BarChart3 className="h-4 w-4 text-brand" />
-                  <span>격차 리포트 · 필요시설 추천 보기</span>
-                </span>
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-            </aside>
-          ) : (
-            <div className="h-[310px] animate-pulse rounded-2xl border border-line bg-surface lg:mt-2" />
-          )}
+          <div className="mx-auto mt-6 w-full max-w-3xl">
+            <a
+              href="#public-resources"
+              className="group flex w-full items-center justify-between gap-3 rounded-2xl bg-pine px-5 py-4 text-sm font-bold text-white shadow-card transition-colors hover:bg-brand-strong"
+            >
+              <span className="inline-flex items-center gap-2">
+                <ArrowDown
+                  className="h-4 w-4 text-brand-light"
+                  aria-hidden="true"
+                />
+                공공자원 둘러보기
+              </span>
+              <span className="inline-flex items-center gap-1 text-xs font-semibold text-white/60">
+                주변 시설 · 지도
+                <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+              </span>
+            </a>
+          </div>
         </section>
       ) : (
         <section>{composer(false)}</section>
@@ -806,13 +867,20 @@ export default function HomeAISearchPage() {
       ) : null}
 
       {aiResult?.crisis?.detected ? (
-        <section role="alert" className="rounded-3xl border-2 border-rose-500 bg-rose-50 p-6 sm:p-8">
+        <section
+          role="alert"
+          className="rounded-3xl border-2 border-rose-500 bg-rose-50 p-6 sm:p-8"
+        >
           <div className="flex items-start gap-4">
             <AlertTriangle className="mt-1 h-8 w-8 shrink-0 text-rose-600" />
             <div className="w-full space-y-5">
               <div>
-                <h2 className="text-2xl font-extrabold text-rose-950">지금 바로 도움을 받으실 수 있어요</h2>
-                <p className="mt-1.5 text-base text-rose-900">{aiResult.crisis.message}</p>
+                <h2 className="text-2xl font-extrabold text-rose-950">
+                  지금 바로 도움을 받으실 수 있어요
+                </h2>
+                <p className="mt-1.5 text-base text-rose-900">
+                  {aiResult.crisis.message}
+                </p>
               </div>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {aiResult.crisis.contacts.map((c) => (
@@ -822,7 +890,9 @@ export default function HomeAISearchPage() {
                     className="flex flex-col justify-between rounded-2xl border border-rose-200 bg-white p-5 shadow-xs transition-colors hover:border-rose-400"
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-base font-bold text-ink">{c.name}</span>
+                      <span className="text-base font-bold text-ink">
+                        {c.name}
+                      </span>
                       <span className="inline-flex items-center gap-1 rounded-xl bg-rose-600 px-3 py-1 text-base font-extrabold text-white">
                         <PhoneCall className="h-4 w-4" />
                         {c.number}
@@ -852,7 +922,9 @@ export default function HomeAISearchPage() {
           onFocusMap={(id) => {
             setMapMode("resources");
             setFocusedMapProgramId(id);
-            document.getElementById("doran-live-map")?.scrollIntoView({ behavior: "smooth", block: "center" });
+            document
+              .getElementById("doran-live-map")
+              ?.scrollIntoView({ behavior: "smooth", block: "center" });
           }}
           onSelectProgram={(id) => {
             setDrawerProgramId(id);
@@ -869,14 +941,20 @@ export default function HomeAISearchPage() {
           2. 메인 콘텐츠: 좌측 넓은 추천 리스트(60%) + 우측 Sticky 지도(40%)
          ============================================================ */}
       {!aiResult?.crisis?.detected ? (
-        <section className="grid items-start gap-8 lg:grid-cols-[minmax(0,1.3fr)_minmax(400px,1fr)]">
+        <section
+          id="public-resources"
+          className={`grid scroll-mt-24 items-start gap-8 lg:grid-cols-[minmax(0,1.3fr)_minmax(400px,1fr)] ${
+            !hasSearched ? "border-t border-line/70 pt-12" : ""
+          }`}
+        >
           <div className="space-y-5">
             {/* 검색 결과 시: 중복 큰 박스 없이 깔끔한 1줄 조건 조정 바 */}
             {hasSearched && editableProfile ? (
               <div className="flex flex-wrap items-center gap-2">
                 {AGE_PRESETS.map((preset) => {
                   const active =
-                    editableProfile.age != null && Math.abs(editableProfile.age - preset.age) <= 5;
+                    editableProfile.age != null &&
+                    Math.abs(editableProfile.age - preset.age) <= 5;
                   return (
                     <button
                       key={preset.label}
@@ -895,23 +973,25 @@ export default function HomeAISearchPage() {
 
                 <span className="mx-1 h-5 w-px bg-line" aria-hidden="true" />
 
-                {(["welfare", "education", "culture"] as CategoryType[]).map((cat) => {
-                  const active = editableProfile.categories.includes(cat);
-                  return (
-                    <button
-                      key={cat}
-                      type="button"
-                      onClick={() => toggleCategoryChip(cat)}
-                      className={`rounded-xl px-4 py-2 text-sm font-bold transition-colors ${
-                        active
-                          ? "bg-pine text-white"
-                          : "bg-surface text-ink-soft ring-1 ring-line hover:bg-fill-soft"
-                      }`}
-                    >
-                      {CATEGORY_LABELS[cat]}
-                    </button>
-                  );
-                })}
+                {(["welfare", "education", "culture"] as CategoryType[]).map(
+                  (cat) => {
+                    const active = editableProfile.categories.includes(cat);
+                    return (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => toggleCategoryChip(cat)}
+                        className={`rounded-xl px-4 py-2 text-sm font-bold transition-colors ${
+                          active
+                            ? "bg-pine text-white"
+                            : "bg-surface text-ink-soft ring-1 ring-line hover:bg-fill-soft"
+                        }`}
+                      >
+                        {CATEGORY_LABELS[cat]}
+                      </button>
+                    );
+                  },
+                )}
 
                 <button
                   type="button"
@@ -932,10 +1012,14 @@ export default function HomeAISearchPage() {
                     {anchor.label} 주변 공공자원
                   </h2>
                   <p className="mt-1 text-base text-muted">
-                    위 검색창에 내 상황을 말하면 자격에 맞는 혜택만 골라 정리해 드려요.
+                    위 검색창에 내 상황을 말하면 자격에 맞는 혜택만 골라 정리해
+                    드려요.
                   </p>
                 </div>
-                <Link href="/explore" className="text-sm font-bold text-brand hover:underline">
+                <Link
+                  href="/explore"
+                  className="text-sm font-bold text-brand hover:underline"
+                >
                   전체 탐색 →
                 </Link>
               </div>
@@ -952,7 +1036,9 @@ export default function HomeAISearchPage() {
                   <button
                     key={tab.key}
                     type="button"
-                    onClick={() => setResultTab(tab.key as "all" | "map" | "online")}
+                    onClick={() =>
+                      setResultTab(tab.key as "all" | "map" | "online")
+                    }
                     className={`rounded-xl px-4 py-2 text-sm font-bold transition-colors ${
                       resultTab === tab.key
                         ? "bg-pine text-white shadow-card"
@@ -1009,10 +1095,18 @@ export default function HomeAISearchPage() {
               <div className="space-y-4">
                 {displayedItems.map(({ program, rec }) => {
                   const isSaved = savedIds.has(program.id);
-                  const isCompared = compareList.some((p) => p.id === program.id);
+                  const isCompared = compareList.some(
+                    (p) => p.id === program.id,
+                  );
                   const hasLocation = Boolean(program.location);
                   const isFocused = program.id === focusedMapProgramId;
-                  const distanceHint = formatDistanceWithWalk(program.distanceKm);
+                  const distanceHint = formatDistanceWithWalk(
+                    program.distanceKm,
+                  );
+                  const applyUrl =
+                    program.applyInfo.url && !isMapLink(program.applyInfo.url)
+                      ? program.applyInfo.url
+                      : null;
 
                   return (
                     <article
@@ -1027,7 +1121,9 @@ export default function HomeAISearchPage() {
                         }
                       }}
                       className={`group relative cursor-pointer rounded-2xl border bg-surface p-5 transition-colors hover:border-line-strong hover:shadow-card ${
-                        isFocused ? "border-brand ring-2 ring-brand/20" : "border-line"
+                        isFocused
+                          ? "border-brand ring-2 ring-brand/20"
+                          : "border-line"
                       }`}
                     >
                       {/* 1단: 자격 상태 + 분야·마감 + 액션 */}
@@ -1048,11 +1144,15 @@ export default function HomeAISearchPage() {
                           ) : null}
 
                           <span className="inline-flex items-center gap-1.5 text-ink-soft">
-                            <span className={`h-2.5 w-2.5 rounded-full ${CATEGORY_DOT[program.category]}`} />
+                            <span
+                              className={`h-2.5 w-2.5 rounded-full ${CATEGORY_DOT[program.category]}`}
+                            />
                             {CATEGORY_LABELS[program.category]}
                           </span>
                           <span className="text-line-strong">·</span>
-                          <span className="text-brand">{formatDeadlineBadge(program)}</span>
+                          <span className="text-brand">
+                            {formatDeadlineBadge(program)}
+                          </span>
                         </div>
 
                         <div className="flex shrink-0 items-center gap-1.5">
@@ -1062,7 +1162,9 @@ export default function HomeAISearchPage() {
                               e.stopPropagation();
                               toggleCompare(program);
                             }}
-                            aria-label={isCompared ? "비교에서 제거" : "비교함에 담기"}
+                            aria-label={
+                              isCompared ? "비교에서 제거" : "비교함에 담기"
+                            }
                             className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-bold transition-colors ${
                               isCompared
                                 ? "bg-pine text-white"
@@ -1079,14 +1181,18 @@ export default function HomeAISearchPage() {
                               e.stopPropagation();
                               void toggleSave(program.id);
                             }}
-                            aria-label={isSaved ? "저장 취소" : "체크리스트에 저장"}
+                            aria-label={
+                              isSaved ? "저장 취소" : "체크리스트에 저장"
+                            }
                             className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-bold transition-colors ${
                               isSaved
                                 ? "bg-brand text-white"
                                 : "bg-fill text-subtle hover:text-ink"
                             }`}
                           >
-                            <Bookmark className={`h-4 w-4 ${isSaved ? "fill-white" : ""}`} />
+                            <Bookmark
+                              className={`h-4 w-4 ${isSaved ? "fill-white" : ""}`}
+                            />
                             <span>{isSaved ? "저장됨" : "저장"}</span>
                           </button>
                         </div>
@@ -1099,12 +1205,15 @@ export default function HomeAISearchPage() {
 
                       {/* 3단: 핵심 혜택 1줄 강조 */}
                       <p className="mt-2 text-base font-bold text-brand">
-                        {COST_LABELS[program.cost.type]} · {program.cost.description}
+                        {COST_LABELS[program.cost.type]} ·{" "}
+                        {program.cost.description}
                       </p>
 
                       {/* 핵심 조건/설명 1줄 */}
                       <p className="mt-1.5 line-clamp-1 text-base text-ink-soft">
-                        {rec && rec.eligibility.status === "verify_needed" && rec.eligibility.verificationNeeded[0]
+                        {rec &&
+                        rec.eligibility.status === "verify_needed" &&
+                        rec.eligibility.verificationNeeded[0]
                           ? `확인 필요: ${rec.eligibility.verificationNeeded[0]}`
                           : program.summary}
                       </p>
@@ -1133,9 +1242,9 @@ export default function HomeAISearchPage() {
                         </div>
 
                         <div className="flex flex-wrap items-center gap-1.5">
-                          {program.applyInfo.url ? (
+                          {applyUrl ? (
                             <a
-                              href={program.applyInfo.url}
+                              href={applyUrl}
                               target="_blank"
                               rel="noopener noreferrer"
                               onClick={(e) => e.stopPropagation()}
@@ -1189,7 +1298,9 @@ export default function HomeAISearchPage() {
                 {/* 환각 제로 · 결정론 필터링 제외 사유 투명 리포트 */}
                 {hasSearched && aiResult && !aiResult.crisis ? (
                   <ExcludedTransparencyPanel
-                    totalEvaluatedCount={aiResult.totalEvaluatedCount ?? allPrograms.length}
+                    totalEvaluatedCount={
+                      aiResult.totalEvaluatedCount ?? allPrograms.length
+                    }
                     totalExcludedCount={aiResult.totalExcludedCount ?? 0}
                     excludedPrograms={aiResult.excludedPrograms ?? []}
                   />
@@ -1199,7 +1310,10 @@ export default function HomeAISearchPage() {
           </div>
 
           {/* 우측: Sticky 인터랙티브 지도 + 동네 격차 요약 */}
-          <aside id="doran-live-map" className="scroll-mt-24 space-y-4 lg:sticky lg:top-[80px]">
+          <aside
+            id="doran-live-map"
+            className="scroll-mt-24 space-y-4 lg:sticky lg:top-[80px]"
+          >
             <div className="relative h-[420px] overflow-hidden rounded-2xl border border-line bg-fill shadow-card lg:h-[560px]">
               <div className="pointer-events-none absolute top-3.5 right-3.5 left-3.5 z-[450] flex flex-wrap items-center justify-between gap-2">
                 <div className="pointer-events-auto inline-flex rounded-xl border border-line bg-white/95 p-1 shadow-sm backdrop-blur">
@@ -1218,7 +1332,9 @@ export default function HomeAISearchPage() {
                     type="button"
                     onClick={() => setMapMode("gap")}
                     className={`rounded-lg px-3.5 py-1.5 text-sm font-bold transition-colors ${
-                      mapMode === "gap" ? "bg-rose-600 text-white" : "text-muted hover:bg-fill"
+                      mapMode === "gap"
+                        ? "bg-rose-600 text-white"
+                        : "text-muted hover:bg-fill"
                     }`}
                   >
                     동네 격차 지도
@@ -1231,7 +1347,9 @@ export default function HomeAISearchPage() {
                   disabled={locating}
                   className="pointer-events-auto inline-flex items-center gap-1.5 rounded-xl border border-line bg-white/95 px-3 py-2 text-xs font-bold text-ink shadow-sm backdrop-blur hover:bg-white"
                 >
-                  <LocateFixed className={`h-3.5 w-3.5 text-brand ${locating ? "animate-spin" : ""}`} />
+                  <LocateFixed
+                    className={`h-3.5 w-3.5 text-brand ${locating ? "animate-spin" : ""}`}
+                  />
                   <span>내 위치</span>
                 </button>
               </div>
@@ -1318,7 +1436,8 @@ export default function HomeAISearchPage() {
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-bold text-ink">
-                      {selectedRegion.sigungu} {selectedRegion.dong} 수요·공급 격차
+                      {selectedRegion.sigungu} {selectedRegion.dong} 수요·공급
+                      격차
                     </span>
                     <span
                       className={`rounded-lg px-2 py-0.5 text-xs font-extrabold ${
@@ -1336,7 +1455,8 @@ export default function HomeAISearchPage() {
                     </span>
                   </div>
                   <p className="mt-1 text-xs text-muted">
-                    수요 {selectedRegion.scores.demandIndex} · 공급 {selectedRegion.scores.supplyIndex}
+                    수요 {selectedRegion.scores.demandIndex} · 공급{" "}
+                    {selectedRegion.scores.supplyIndex}
                     {selectedRegion.scores.shortageCategories.length > 0
                       ? ` · 부족 분야: ${selectedRegion.scores.shortageCategories.map((c) => CATEGORY_LABELS[c]).join(", ")}`
                       : " · 전 분야 균형 양호"}
