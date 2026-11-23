@@ -2,10 +2,18 @@
 
 import { useState } from "react";
 import { Leaf, RotateCcw, Sliders, TrendingDown } from "lucide-react";
-import type { RegionStat } from "@/lib/types";
+import type { CategoryType, RegionStat } from "@/lib/types";
+
+export interface SimulatorCounts {
+  welfare: number;
+  education: number;
+  culture: number;
+}
 
 interface GapPolicySimulatorProps {
   region: RegionStat;
+  counts?: SimulatorCounts;
+  onChangeCounts?: (next: SimulatorCounts) => void;
 }
 
 function getGrade(gap: number): { label: string; style: string } {
@@ -14,12 +22,24 @@ function getGrade(gap: number): { label: string; style: string } {
   return { label: "생활권 균형 달성", style: "bg-emerald-100 text-emerald-800" };
 }
 
-export function GapPolicySimulator({ region }: GapPolicySimulatorProps) {
-  const [addWelfare, setAddWelfare] = useState(0);
-  const [addEducation, setAddEducation] = useState(0);
-  const [addCulture, setAddCulture] = useState(0);
+export function GapPolicySimulator({ region, counts, onChangeCounts }: GapPolicySimulatorProps) {
+  const [localCounts, setLocalCounts] = useState<SimulatorCounts>({
+    welfare: 0,
+    education: 0,
+    culture: 0,
+  });
   const [strategy, setStrategy] = useState<"reuse" | "new_build">("reuse");
 
+  const activeCounts = counts ?? localCounts;
+  const setCategoryCount = (cat: CategoryType, val: number) => {
+    const next = { ...activeCounts, [cat]: Math.min(6, Math.max(0, val)) };
+    if (onChangeCounts) onChangeCounts(next);
+    else setLocalCounts(next);
+  };
+
+  const addWelfare = activeCounts.welfare;
+  const addEducation = activeCounts.education;
+  const addCulture = activeCounts.culture;
   const totalAdded = addWelfare + addEducation + addCulture;
 
   // 부족 분야에 투입할수록 공급 개선 가중치가 높도록 결정론 모델 적용
@@ -46,14 +66,14 @@ export function GapPolicySimulator({ region }: GapPolicySimulatorProps) {
   const estimatedCo2SavedTon = strategy === "reuse" ? totalAdded * 42 : 0;
 
   const reset = () => {
-    setAddWelfare(0);
-    setAddEducation(0);
-    setAddCulture(0);
+    const zero: SimulatorCounts = { welfare: 0, education: 0, culture: 0 };
+    if (onChangeCounts) onChangeCounts(zero);
+    else setLocalCounts(zero);
     setStrategy("reuse");
   };
 
   return (
-    <section className="rounded-3xl border border-[#cce4e4] bg-white p-6 shadow-xs sm:p-7">
+    <section id="gap-policy-simulator" className="scroll-mt-24 rounded-3xl border border-[#cce4e4] bg-white p-6 shadow-xs sm:p-7">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="inline-flex items-center gap-1.5 text-xs font-bold text-[#0d6e6e]">
@@ -115,21 +135,21 @@ export function GapPolicySimulator({ region }: GapPolicySimulatorProps) {
               key: "welfare",
               label: "복지 프로그램 · 돌봄 거점 추가",
               value: addWelfare,
-              set: setAddWelfare,
+              set: (v: number) => setCategoryCount("welfare", v),
               isShortage: region.scores.shortageCategories.includes("welfare"),
             },
             {
               key: "education",
               label: "교육 강좌 · 평생학습 공간 추가",
               value: addEducation,
-              set: setAddEducation,
+              set: (v: number) => setCategoryCount("education", v),
               isShortage: region.scores.shortageCategories.includes("education"),
             },
             {
               key: "culture",
               label: "문화 · 여가 공유공간 추가",
               value: addCulture,
-              set: setAddCulture,
+              set: (v: number) => setCategoryCount("culture", v),
               isShortage: region.scores.shortageCategories.includes("culture"),
             },
           ].map((ctrl) => (

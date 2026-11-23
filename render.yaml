@@ -24,7 +24,7 @@ services:
       - key: LLM_MODEL
         value: gpt-4o-mini
       - key: CORS_ORIGINS
-        value: http://localhost:3000
+        value: http://localhost:3000,https://doran.stda.app
       - key: CORS_ORIGIN_REGEX
         value: https://.*\.vercel\.app
       - key: KAKAO_API_KEY

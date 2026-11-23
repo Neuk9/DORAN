@@ -175,6 +175,18 @@ export interface RegionStat {
   updatedAt: string;
 }
 
+export interface RecommendedFacility {
+  name: string;
+  category: CategoryType;
+  priority: "urgent" | "high" | "recommended";
+  targetDemographic: string;
+  currentInDongCount: number;
+  currentStatus: string;
+  rationale: string;
+  deliverySuggestion: string;
+  estimatedGapReduction: number;
+}
+
 export interface RegionReport {
   region: RegionStat;
   liveProgramCounts: {
@@ -185,6 +197,7 @@ export interface RegionReport {
   };
   recentDemandSignals: Record<string, number>;
   nearbyRecommended: Program[];
+  recommendedFacilities: RecommendedFacility[];
   insights: string[];
 }
 
