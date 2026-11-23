@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BarChart3, Bookmark, Compass, LocateFixed, MapPin, Search, Type } from "lucide-react";
 import { useApp } from "./AppContext";
+import { BrandMark } from "./BrandMark";
 
 export function Header() {
   const pathname = usePathname();
@@ -29,12 +30,9 @@ export function Header() {
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-canvas/85 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-[1360px] items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
-        {/* 좌측: 브랜드 워드마크 (절제된 2-dot 대화 심볼) */}
+        {/* 좌측: 브랜드 워드마크 */}
         <Link href="/" aria-label="도란도란 홈" className="flex shrink-0 items-center gap-2.5">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <circle cx="9.5" cy="12" r="6.5" fill="#0f5c57" />
-            <circle cx="16.5" cy="12" r="4.5" fill="#c85a32" fillOpacity="0.88" />
-          </svg>
+          <BrandMark className="h-7 w-7" />
           <span className="text-[19px] font-extrabold tracking-[-0.03em] text-ink">도란도란</span>
         </Link>
 
