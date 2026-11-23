@@ -38,7 +38,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
               자연어 이해와 공공데이터를 결합해 개인 맞춤 공공자원과 지역 격차를 한눈에 연결합니다.
             </p>
             <p className="text-xs leading-relaxed text-faint">
-              연계 출처: 행정안전부(주민등록 인구 · 전국도서관표준데이터) · 한국사회보장정보원(복지로 · 사회복지시설) · 카카오 로컬
+              연계 출처: 행정안전부(주민등록 인구·세대 · 전국도서관) · 한국사회보장정보원(복지로 · 사회복지시설) · 한국문화정보원 · 국가평생교육진흥원(K-MOOC) · 카카오 로컬
             </p>
           </div>
 

@@ -1,11 +1,16 @@
-"""공공데이터포털(data.go.kr) 4종 오픈API + 카카오 로컬 실데이터 동기화 및 동적 격차 산출 모듈.
+"""공공데이터포털(data.go.kr) 9종 오픈API + 카카오 로컬 실데이터 동기화 및 동적 격차 산출 모듈.
 
 연동 API:
 1. 행정안전부_행정동별(통반단위) 성/연령별 주민등록 인구수 (15108072)
-2. 한국사회보장정보원_지자체복지서비스 (LcgvWelfarelist)
-3. 한국사회보장정보원_사회복지시설정보서비스 현황 (sclWlfrFcltInfoInqirService2)
-4. 전국도서관표준데이터 (tn_pubr_public_lbrry_api)
-5. 카카오 로컬 API (주소 지오코딩 · 행정동 역지오코딩 · 생활권 문화/교육 시설 조회)
+2. 행정안전부_법정동별(행정동 통반단위) 주민등록 인구 및 세대현황 (15108071)
+3. 한국사회보장정보원_지자체복지서비스 (LcgvWelfarelist)
+4. 한국사회보장정보원_중앙부처복지서비스 (15090532)
+5. 한국사회보장정보원_사회복지시설정보서비스 현황 (sclWlfrFcltInfoInqirService2)
+6. 행정안전부_전국도서관표준데이터 (tn_pubr_public_lbrry_api)
+7. 국가평생교육진흥원_K-MOOC 강좌정보 (15042355)
+8. 한국문화정보원_전국문화기반시설총람 (15125097)
+9. 한국문화예술교육진흥원_문화예술교육 자원지도 (15140200)
+10. 카카오 로컬 API (주소 지오코딩 · 행정동 역지오코딩 · 생활권 문화/교육 시설 조회)
 """
 
 import asyncio
@@ -27,19 +32,24 @@ logger = logging.getLogger(__name__)
 KST = timezone(timedelta(hours=9))
 
 MOIS_POP_URL = "https://apis.data.go.kr/1741000/admmSexdAgePpltn/selectAdmmSexdAgePpltn"
+MOIS_HOUSEHOLD_URL = "https://apis.data.go.kr/1741000/stdgPpltnHhStus/selectStdgPpltnHhStus"
 BOKJIRO_LOCAL_URL = "https://apis.data.go.kr/B554287/LocalGovernmentWelfareInformations/LcgvWelfarelist"
+BOKJIRO_CENTRAL_URL = "https://apis.data.go.kr/B554287/NationalWelfareInformationsV001/NationalWelfarelistV001"
 WELFARE_FCLT_LIST_URL = "https://apis.data.go.kr/B554287/sclWlfrFcltInfoInqirService2/getFcltListInfoInqire2"
 WELFARE_FCLT_DETAIL_URL = "https://apis.data.go.kr/B554287/sclWlfrFcltInfoInqirService2/getFcltByBassInfoInqire2"
 LIBRARY_STD_URL = "https://api.data.go.kr/openapi/tn_pubr_public_lbrry_api"
+KMOOC_LIST_URL = "https://apis.data.go.kr/B552881/kmooc_v2_0/courseList_v2_0"
+CULTURE_FCLT_BASE_URL = "https://apis.data.go.kr/B553457/rgnCltrFcltExmnv1"
+ARTE_PROGRAM_URL = "https://apis.data.go.kr/B551463/arteApiService/getProgramInfo"
 
 KAKAO_ADDRESS_URL = "https://dapi.kakao.com/v2/local/search/address.json"
 KAKAO_KEYWORD_URL = "https://dapi.kakao.com/v2/local/search/keyword.json"
 KAKAO_COORD2REGION_URL = "https://dapi.kakao.com/v2/local/geo/coord2regioncode.json"
 
-# (시도명, 시군구명, 시군구코드 10자리, 대표 행정동코드 10자리)
-DEFAULT_TARGET_GUS: list[tuple[str, str, str, str]] = [
-    ("서울특별시", "구로구", "1153000000", "1153054000"),
-    ("서울특별시", "금천구", "1154500000", "1154551000"),
+# (시도명, 시군구명, 시군구코드 10자리, 대표 행정동코드 10자리, 대표 법정동코드 10자리)
+DEFAULT_TARGET_GUS: list[tuple[str, str, str, str, str]] = [
+    ("서울특별시", "구로구", "1153000000", "1153054000", "1153010200"),
+    ("서울특별시", "금천구", "1154500000", "1154551000", "1154510100"),
 ]
 
 # 동시 동기화 중복 실행 방지 락
@@ -800,11 +810,476 @@ async def sync_kakao_community_facilities_for_dong(
     return {"upserted": len(ops)}
 
 
+async def fetch_mois_gu_households(
+    client: httpx.AsyncClient,
+    api_key: str,
+    seed_stdg_cd: str,
+    ym: str | None = None,
+) -> dict[str, float]:
+    """행정안전부 주민등록 인구 및 세대현황(15108071)으로 법정동별 세대당 인구수(1인가구 밀도 지표) 조회."""
+    candidate_yms = [ym] if ym else _recent_year_months()
+    for target_ym in candidate_yms:
+        if not target_ym:
+            continue
+        try:
+            resp = await client.get(
+                MOIS_HOUSEHOLD_URL,
+                params={
+                    "serviceKey": api_key,
+                    "stdgCd": seed_stdg_cd,
+                    "srchFrYm": target_ym,
+                    "srchToYm": target_ym,
+                    "lv": "3",
+                    "regSeCd": "1",
+                    "type": "json",
+                    "numOfRows": 50,
+                    "pageNo": 1,
+                },
+                timeout=25.0,
+            )
+            if resp.status_code != 200:
+                continue
+            payload = resp.json().get("Response") or {}
+            if str((payload.get("head") or {}).get("resultCode")) != "0":
+                continue
+            items = (payload.get("items") or {}).get("item") or []
+            if isinstance(items, dict):
+                items = [items]
+            out: dict[str, float] = {}
+            for item in items:
+                stdg_nm = str(item.get("stdgNm") or "").strip()
+                try:
+                    hh_nmpr = float(item.get("hhNmpr") or 0)
+                except (ValueError, TypeError):
+                    hh_nmpr = 0.0
+                if stdg_nm and hh_nmpr > 0:
+                    out[stdg_nm] = hh_nmpr
+            if out:
+                return out
+        except Exception as exc:
+            logger.warning("[sync_public] MOIS household fetch failed (%s): %s", seed_stdg_cd, exc)
+    return {}
+
+
+async def sync_bokjiro_central(
+    client: httpx.AsyncClient,
+    db: AsyncDatabase,
+    api_key: str,
+) -> int:
+    """한국사회보장정보원 중앙부처복지서비스 API(15090532)로 전국 핵심 복지사업 동기화."""
+    keywords = ("청년", "노인", "저소득", "아이돌봄", "에너지", "문화누리")
+    now = datetime.now(UTC)
+    seen_ids: set[str] = set()
+    ops: list[UpdateOne] = []
+
+    async def _fetch_kw(kw: str) -> list[ET.Element]:
+        for attempt in range(2):
+            try:
+                resp = await client.get(
+                    BOKJIRO_CENTRAL_URL,
+                    params={
+                        "serviceKey": api_key,
+                        "callTp": "L",
+                        "pageNo": 1,
+                        "numOfRows": 10,
+                        "srchKeyCode": "003",
+                        "searchWrd": kw,
+                    },
+                    timeout=25.0,
+                )
+                if resp.status_code == 200:
+                    root = ET.fromstring(resp.text)
+                    return root.findall(".//servList")
+            except Exception:
+                if attempt == 0:
+                    await asyncio.sleep(0.8)
+        return []
+
+    batches = await asyncio.gather(*(_fetch_kw(kw) for kw in keywords))
+    for batch in batches:
+        for item in batch:
+            serv_id = (item.findtext("servId") or "").strip()
+            title = (item.findtext("servNm") or "").strip()
+            if not serv_id or not title or serv_id in seen_ids:
+                continue
+            seen_ids.add(serv_id)
+
+            summary = (item.findtext("servDgst") or "중앙부처 전국 복지지원 사업").strip()
+            ministry = (item.findtext("jurMnofNm") or "중앙부처").strip()
+            dept = (item.findtext("jurOrgNm") or "").strip()
+            provider = f"{ministry} {dept}".strip()
+            link = (item.findtext("servDtlLink") or "").strip() or None
+            phone = (item.findtext("rprsCtadr") or "").strip() or "129"
+            life_array = (item.findtext("lifeArray") or "").strip()
+            trg_array = (item.findtext("trgterIndvdlArray") or "").strip()
+            thema_array = (item.findtext("intrsThemaArray") or "").strip()
+            cycle = (item.findtext("sprtCycNm") or "").strip()
+            pvsn = (item.findtext("srvPvsnNm") or "지원").strip()
+            online_yn = (item.findtext("onapPsbltYn") or "").strip()
+
+            target_groups, min_age, max_age, category = _parse_bokjiro_targets(
+                f"{life_array},{trg_array}", thema_array
+            )
+            cost_desc = f"{cycle} {pvsn}".strip() if cycle else pvsn
+            apply_method = (
+                "복지로 온라인 신청 또는 관할 주민센터 방문"
+                if online_yn == "Y"
+                else "관할 동 주민센터 방문 또는 담당 부처 문의"
+            )
+            tags = ["전국", "복지로", "중앙부처", ministry]
+            for tok in f"{life_array},{trg_array},{thema_array}".split(","):
+                t = tok.strip()
+                if t and t not in tags:
+                    tags.append(t)
+
+            doc = {
+                "externalId": f"bokjiro-central:{serv_id}",
+                "category": category,
+                "title": title,
+                "summary": summary,
+                "provider": provider,
+                "region": {
+                    "sido": "전국",
+                    "sigungu": "전국",
+                    "dong": None,
+                    "admCd": "0000000000",
+                    "isNationwide": True,
+                },
+                "address": "전국 온라인·주민센터",
+                "cost": {"type": "subsidy", "amount": 0, "description": cost_desc},
+                "schedule": {
+                    "days": ["mon", "tue", "wed", "thu", "fri"],
+                    "timeSlots": ["online", "weekday_day"],
+                    "hoursText": "상시 / 사업별 모집기간 확인",
+                },
+                "deadline": None,
+                "isAlwaysOpen": True,
+                "eligibility": {
+                    "minAge": min_age,
+                    "maxAge": max_age,
+                    "targetGroups": target_groups,
+                    "incomeMaxPct": None,
+                    "requiresVerification": ["복지로 공식 페이지에서 세부 소득·자산 기준 확인 필요"],
+                    "requiredDocs": ["신분증", "소득·재산 증빙서류"],
+                },
+                "applyInfo": {
+                    "method": apply_method,
+                    "url": link,
+                    "phone": phone,
+                },
+                "source": {"name": "한국사회보장정보원(중앙부처복지서비스 API)", "syncedAt": now},
+                "tags": tags[:8],
+            }
+            ops.append(
+                UpdateOne(
+                    {"externalId": doc["externalId"]},
+                    {"$set": doc, "$setOnInsert": {"createdAt": now}},
+                    upsert=True,
+                )
+            )
+
+    if ops:
+        await db["programs"].bulk_write(ops, ordered=False)
+    return len(ops)
+
+
+async def sync_kmooc_courses(
+    client: httpx.AsyncClient,
+    db: AsyncDatabase,
+    api_key: str,
+) -> int:
+    """국가평생교육진흥원 K-MOOC 강좌정보 API(15042355)로 무료 온라인 공개강좌 동기화."""
+    now = datetime.now(UTC)
+    now_ts = int(now.timestamp())
+    ops: list[UpdateOne] = []
+
+    for page in (1, 2):
+        try:
+            resp = await client.get(
+                KMOOC_LIST_URL,
+                params={"serviceKey": api_key, "page": page, "size": 15},
+                timeout=15.0,
+            )
+            if resp.status_code != 200:
+                continue
+            items = resp.json().get("items") or []
+        except Exception as exc:
+            logger.warning("[sync_public] K-MOOC fetch failed (p%d): %s", page, exc)
+            continue
+
+        for item in items:
+            cid = str(item.get("id") or "").strip()
+            name = str(item.get("name") or "").strip()
+            if not cid or not name:
+                continue
+            org_name = str(item.get("org_name") or "K-MOOC 참여기관").strip()
+            professor = str(item.get("professor") or "").strip()
+            url = str(item.get("url") or f"https://www.kmooc.kr/view/course/detail/{cid}").strip()
+            end_ts = _safe_int(item.get("enrollment_end"))
+            is_auditor = str(item.get("is_auditor") or "").upper() == "Y"
+            # 이미 마감되었고 청강도 불가능한 강좌는 제외
+            if end_ts and end_ts < now_ts and not is_auditor:
+                continue
+
+            deadline_dt = (
+                datetime.fromtimestamp(end_ts, tz=UTC)
+                if end_ts and end_ts > now_ts
+                else None
+            )
+            prof_text = f" · 담당교수 {professor}" if professor else ""
+            doc = {
+                "externalId": f"kmooc:{cid}",
+                "category": "education",
+                "title": f"[K-MOOC] {name}",
+                "summary": f"{org_name}{prof_text}에서 제공하는 국가평생교육진흥원 무료 온라인 공개강좌입니다.",
+                "provider": f"국가평생교육진흥원 · {org_name}",
+                "region": {
+                    "sido": "전국",
+                    "sigungu": "전국",
+                    "dong": None,
+                    "admCd": "0000000000",
+                    "isNationwide": True,
+                },
+                "address": "온라인 (K-MOOC)",
+                "cost": {"type": "free", "amount": 0, "description": "전액 무료 수강 (이수증 발급)"},
+                "schedule": {
+                    "days": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
+                    "timeSlots": ["online", "weekday_evening", "weekend"],
+                    "hoursText": "온라인 상시 수강 (PC·모바일)",
+                },
+                "deadline": deadline_dt,
+                "isAlwaysOpen": deadline_dt is None,
+                "eligibility": {
+                    "minAge": None,
+                    "maxAge": None,
+                    "targetGroups": ["general", "youth", "student", "senior", "job_seeker"],
+                    "incomeMaxPct": None,
+                    "requiresVerification": [],
+                    "requiredDocs": [],
+                },
+                "applyInfo": {
+                    "method": "K-MOOC 홈페이지 무료 회원가입 후 수강신청",
+                    "url": url,
+                    "phone": "1811-3118",
+                },
+                "source": {"name": "국가평생교육진흥원(K-MOOC API)", "syncedAt": now},
+                "tags": ["K-MOOC", "무료강의", "온라인교육", "평생학습", org_name],
+            }
+            ops.append(
+                UpdateOne(
+                    {"externalId": doc["externalId"]},
+                    {"$set": doc, "$setOnInsert": {"createdAt": now}},
+                    upsert=True,
+                )
+            )
+
+    if ops:
+        await db["programs"].bulk_write(ops, ordered=False)
+    return len(ops)
+
+
+async def sync_culture_facilities(
+    client: httpx.AsyncClient,
+    db: AsyncDatabase,
+    api_key: str,
+    sido: str,
+    sigungu: str,
+    sgg_cd: str,
+) -> int:
+    """한국문화정보원 전국문화기반시설총람 API(15125097)로 생활문화센터·문예회관·박물관 등 동기화."""
+    sgg5 = sgg_cd[:5]
+    op_specs: list[tuple[str, str, str]] = [
+        ("clifLvclCntrv1", "lvclCntrNm", "생활문화센터"),
+        ("clifClcnv1", "clcnNm", "문예회관"),
+        ("clifClhsv1", "clhsNm", "지방문화원"),
+        ("clifMsmv1", "msmNm", "박물관"),
+        ("clifArglv1", "arglNm", "미술관"),
+    ]
+    now = datetime.now(UTC)
+    raw_entries: list[tuple[str, str, dict]] = []
+
+    async def _fetch_op(op: str, name_key: str, label: str) -> None:
+        for yr in ("2024", "2023"):
+            try:
+                resp = await client.get(
+                    f"{CULTURE_FCLT_BASE_URL}/{op}",
+                    params={
+                        "serviceKey": api_key,
+                        "pageNo": 1,
+                        "numOfRows": 30,
+                        "pblshYr": yr,
+                        "sggCd": sgg5,
+                        "resultType": "json",
+                    },
+                    timeout=12.0,
+                )
+                if resp.status_code != 200:
+                    continue
+                data = (resp.json().get("response") or {}).get("body", {}).get("data") or []
+                if data:
+                    for item in data:
+                        nm = str(item.get(name_key) or item.get("instNm") or "").strip()
+                        if nm and "휴관" not in nm:
+                            raw_entries.append((op, label, {**item, "_name": nm}))
+                    return
+            except Exception:
+                continue
+
+    await asyncio.gather(*(_fetch_op(op, nk, lb) for op, nk, lb in op_specs))
+
+    ops: list[UpdateOne] = []
+    sem = asyncio.Semaphore(6)
+
+    async def _build_culture_op(op: str, label: str, item: dict) -> UpdateOne | None:
+        name = item["_name"]
+        addr = str(item.get("instAddr") or "").strip()
+        homepage = str(item.get("hmpgAddr") or "").strip() or None
+        if homepage and not homepage.startswith(("http://", "https://")):
+            homepage = f"https://{homepage}"
+
+        async with sem:
+            geo = await kakao_geocode(client, addr or f"{sido} {sigungu} {name}")
+        if not geo:
+            return None
+        lng, lat, adm_cd, dong = geo
+
+        doc = {
+            "externalId": f"culture-fclt:{op}:{sgg5}:{name}",
+            "category": "culture",
+            "title": name,
+            "summary": f"{sigungu} 공식 문화기반시설({label})입니다. 전시·공연·생활문화 동아리 및 주민 문화 프로그램을 이용할 수 있습니다.",
+            "provider": f"{sigungu} · {label}",
+            "region": {
+                "sido": sido,
+                "sigungu": sigungu,
+                "dong": _normalize_dong_name(dong) if dong else None,
+                "admCd": adm_cd or sgg_cd,
+                "isNationwide": False,
+            },
+            "location": {"type": "Point", "coordinates": [lng, lat]},
+            "address": addr or f"{sido} {sigungu}",
+            "cost": {"type": "free", "amount": 0, "description": "무료 또는 공공 문화 요금"},
+            "schedule": {
+                "days": ["tue", "wed", "thu", "fri", "sat", "sun"],
+                "timeSlots": ["weekday_day", "weekend"],
+                "hoursText": "화~일 운영 (세부 시간 홈페이지 확인)",
+            },
+            "deadline": None,
+            "isAlwaysOpen": True,
+            "eligibility": {
+                "minAge": None,
+                "maxAge": None,
+                "targetGroups": ["general", "youth", "family", "senior"],
+                "incomeMaxPct": None,
+                "requiresVerification": [],
+                "requiredDocs": [],
+            },
+            "applyInfo": {
+                "method": "방문 이용 또는 기관 홈페이지 사전 예약",
+                "url": homepage,
+                "phone": str(item.get("telno") or "").strip() or None,
+            },
+            "source": {"name": "한국문화정보원(전국문화기반시설총람 API)", "syncedAt": now},
+            "tags": list(dict.fromkeys([sigungu, label, "문화", "생활문화", "여가", "공연"])),
+        }
+        return UpdateOne(
+            {"externalId": doc["externalId"]},
+            {"$set": doc, "$setOnInsert": {"createdAt": now}},
+            upsert=True,
+        )
+
+    built = await asyncio.gather(*(_build_culture_op(op, lb, it) for op, lb, it in raw_entries))
+    ops = [op for op in built if op is not None]
+    if ops:
+        await db["programs"].bulk_write(ops, ordered=False)
+    return len(ops)
+
+
+async def sync_arte_programs(
+    client: httpx.AsyncClient,
+    db: AsyncDatabase,
+    api_key: str,
+) -> int:
+    """한국문화예술교육진흥원 문화예술교육 자원지도 API(15140200) 동기화 (상위 서버 장애 시 안전 폴백)."""
+    try:
+        resp = await client.get(
+            ARTE_PROGRAM_URL,
+            params={"serviceKey": api_key, "pageNo": 1, "numOfRows": 20},
+            timeout=10.0,
+        )
+        if resp.status_code != 200:
+            logger.info("[sync_public] Arte API unavailable (HTTP %d); skipped gracefully.", resp.status_code)
+            return 0
+        root = ET.fromstring(resp.text)
+    except Exception as exc:
+        logger.info("[sync_public] Arte API skipped gracefully: %s", exc)
+        return 0
+
+    now = datetime.now(UTC)
+    ops: list[UpdateOne] = []
+    for item in root.findall(".//item"):
+        title = (item.findtext("progNm") or item.findtext("title") or "").strip()
+        pid = (item.findtext("progId") or item.findtext("seq") or title).strip()
+        if not title:
+            continue
+        org = (item.findtext("grpNm") or item.findtext("orgNm") or "한국문화예술교육진흥원").strip()
+        summary = (item.findtext("progDesc") or f"{org}에서 운영하는 문화예술교육 프로그램입니다.").strip()
+        doc = {
+            "externalId": f"arte-prog:{pid}",
+            "category": "culture",
+            "title": title,
+            "summary": summary[:280],
+            "provider": org,
+            "region": {
+                "sido": "전국",
+                "sigungu": "전국",
+                "dong": None,
+                "admCd": "0000000000",
+                "isNationwide": True,
+            },
+            "address": (item.findtext("addr") or "운영 기관 확인").strip(),
+            "cost": {"type": "free", "amount": 0, "description": "무료 문화예술교육"},
+            "schedule": {
+                "days": ["mon", "tue", "wed", "thu", "fri", "sat"],
+                "timeSlots": ["weekday_day", "weekend"],
+                "hoursText": "프로그램별 일정 확인",
+            },
+            "deadline": None,
+            "isAlwaysOpen": True,
+            "eligibility": {
+                "minAge": None,
+                "maxAge": None,
+                "targetGroups": ["general", "youth", "family", "senior"],
+                "incomeMaxPct": None,
+                "requiresVerification": [],
+                "requiredDocs": [],
+            },
+            "applyInfo": {
+                "method": "아르떼(아르떼 홈페이지) 또는 운영 단체 문의",
+                "url": (item.findtext("url") or "https://www.arte.or.kr").strip(),
+                "phone": (item.findtext("telNo") or "").strip() or None,
+            },
+            "source": {"name": "한국문화예술교육진흥원(문화예술교육 자원지도 API)", "syncedAt": now},
+            "tags": ["문화예술교육", "문화", "악기", "예술", org],
+        }
+        ops.append(
+            UpdateOne(
+                {"externalId": doc["externalId"]},
+                {"$set": doc, "$setOnInsert": {"createdAt": now}},
+                upsert=True,
+            )
+        )
+
+    if ops:
+        await db["programs"].bulk_write(ops, ordered=False)
+    return len(ops)
+
+
 async def sync_all_public_data(
     db: AsyncDatabase,
-    target_gus: list[tuple[str, str, str, str]] | None = None,
+    target_gus: list[tuple[str, str, str, str, str]] | None = None,
 ) -> dict[str, int | str]:
-    """4개 공공데이터포털 오픈API + 카카오 로컬을 통합 동기화하고 격차 지수를 동적 산출합니다."""
+    """9종 공공데이터포털 오픈API + 카카오 로컬을 통합 동기화하고 격차 지수를 동적 산출합니다."""
     if not settings.data_go_kr_key:
         logger.info("[sync_public] DATA_GO_KR_KEY가 비어 있어 공공 API 동기화를 건너뜁니다.")
         return {"status": "skipped", "reason": "missing_data_go_kr_key"}
@@ -815,45 +1290,87 @@ async def sync_all_public_data(
         now = datetime.now(UTC)
 
         async with httpx.AsyncClient() as client:
-            # 1) 행정안전부 인구 + 복지로 + 사회복지시설 + 도서관 병렬 수집
+            # 1) 9종 공공데이터포털 오픈API 병렬 수집
             pop_tasks = [
                 fetch_mois_gu_populations(client, api_key, sido, sigungu, seed_admm)
-                for sido, sigungu, _sgg_cd, seed_admm in gus
+                for sido, sigungu, _sgg_cd, seed_admm, _seed_stdg in gus
+            ]
+            hh_tasks = [
+                fetch_mois_gu_households(client, api_key, seed_stdg)
+                for _sido, _sigungu, _sgg_cd, _seed_admm, seed_stdg in gus
             ]
             bokjiro_tasks = [
                 sync_bokjiro_local(client, db, api_key, sido, sigungu, sgg_cd)
-                for sido, sigungu, sgg_cd, _ in gus
+                for sido, sigungu, sgg_cd, _, _ in gus
             ]
             fclt_tasks = [
                 sync_welfare_facilities(client, db, api_key, sido, sigungu, sgg_cd)
-                for sido, sigungu, sgg_cd, _ in gus
+                for sido, sigungu, sgg_cd, _, _ in gus
             ]
             lib_tasks = [
                 sync_public_libraries(client, db, api_key, sido, sigungu, sgg_cd)
-                for sido, sigungu, sgg_cd, _ in gus
+                for sido, sigungu, sgg_cd, _, _ in gus
+            ]
+            culture_tasks = [
+                sync_culture_facilities(client, db, api_key, sido, sigungu, sgg_cd)
+                for sido, sigungu, sgg_cd, _, _ in gus
             ]
 
-            pop_results, bokjiro_counts, fclt_counts, lib_counts = await asyncio.gather(
+            (
+                pop_results,
+                hh_results,
+                bokjiro_counts,
+                fclt_counts,
+                lib_counts,
+                culture_counts,
+                central_count,
+                kmooc_count,
+                arte_count,
+            ) = await asyncio.gather(
                 asyncio.gather(*pop_tasks),
+                asyncio.gather(*hh_tasks),
                 asyncio.gather(*bokjiro_tasks),
                 asyncio.gather(*fclt_tasks),
                 asyncio.gather(*lib_tasks),
+                asyncio.gather(*culture_tasks),
+                sync_bokjiro_central(client, db, api_key),
+                sync_kmooc_courses(client, db, api_key),
+                sync_arte_programs(client, db, api_key),
             )
+
+            # 법정동별 세대당 인구수(hhNmpr) 병합 -> 1인가구 밀도 보정
+            hh_by_base_dong: dict[str, float] = {}
+            for hh_map in hh_results:
+                hh_by_base_dong.update(hh_map)
 
             all_dongs: list[dict] = []
             latest_ym: str | None = None
             for ym, dongs in pop_results:
                 if ym and (latest_ym is None or ym > latest_ym):
                     latest_ym = ym
-                all_dongs.extend(dongs)
+                for d in dongs:
+                    base_dong = re.sub(r"\d+동$", "동", d["dong"])
+                    hh_nmpr = hh_by_base_dong.get(d["dong"]) or hh_by_base_dong.get(base_dong)
+                    if hh_nmpr and hh_nmpr < 2.2:
+                        # 세대당 인구가 2.2명 미만일수록 1인가구 밀도가 높음 -> 취약 추정 보정
+                        single_hh_boost = min(0.08, (2.2 - hh_nmpr) * 0.09)
+                        d["population"]["vulnerableRatio"] = round(
+                            min(0.45, d["population"]["vulnerableRatio"] + single_hh_boost),
+                            4,
+                        )
+                    all_dongs.append(d)
 
             if not all_dongs:
                 logger.warning("[sync_public] MOIS 인구 API 응답이 비어 있어 region_stats 갱신을 건너뜁니다.")
                 return {
                     "status": "partial",
-                    "bokjiro": sum(bokjiro_counts),
+                    "bokjiroLocal": sum(bokjiro_counts),
+                    "bokjiroCentral": central_count,
                     "welfareFacilities": sum(fclt_counts),
                     "libraries": sum(lib_counts),
+                    "cultureFacilities": sum(culture_counts),
+                    "kmooc": kmooc_count,
+                    "arte": arte_count,
                     "regions": 0,
                 }
 
@@ -897,14 +1414,12 @@ async def sync_all_public_data(
             counts = {"welfare": 0, "education": 0, "culture": 0}
             seen_prog_ids: set[str] = set()
 
-            # 4-a) 해당 행정동(admCd)에 직접 등록된 자원
             async for p in db["programs"].find({"region.admCd": adm_cd}, {"_id": 1, "category": 1}):
                 pid = str(p["_id"])
                 if pid not in seen_prog_ids and p.get("category") in counts:
                     seen_prog_ids.add(pid)
                     counts[p["category"]] += 1
 
-            # 4-b) 중심 좌표 1.3km 생활권 내 실제 시설
             near_pipe = [
                 {
                     "$geoNear": {
@@ -935,11 +1450,16 @@ async def sync_all_public_data(
         ym_label = f"{latest_ym[:4]}.{latest_ym[4:]}" if latest_ym and len(latest_ym) == 6 else "최신"
         source_notes = [
             f"행정안전부 행정동별 성/연령별 주민등록 인구수 ({ym_label})",
-            "한국사회보장정보원 지자체복지서비스 API",
+            f"행정안전부 주민등록 인구 및 세대현황 ({ym_label})",
+            "한국사회보장정보원 지자체·중앙부처 복지서비스 API",
             "한국사회보장정보원 사회복지시설정보서비스 API",
             "행정안전부 전국도서관표준데이터 API",
-            "카카오 로컬 장소 API (생활권 문화·교육 시설)",
+            "한국문화정보원 전국문화기반시설총람 API",
+            "국가평생교육진흥원 K-MOOC 강좌정보 API",
+            "카카오 로컬 장소 API",
         ]
+        if arte_count > 0:
+            source_notes.append("한국문화예술교육진흥원 문화예술교육 자원지도 API")
 
         region_ops = [
             UpdateOne(
@@ -966,7 +1486,6 @@ async def sync_all_public_data(
         ]
         if region_ops:
             await db["region_stats"].bulk_write(region_ops, ordered=False)
-            # 실데이터로 대체되지 않은 구 시드 전용 행정동 제거 (혼합 방지)
             synced_codes = [d["admCd"] for d in scored_dongs]
             await db["region_stats"].delete_many({"admCd": {"$nin": synced_codes}, "dataSource": {"$ne": "public_api"}})
 
@@ -974,9 +1493,13 @@ async def sync_all_public_data(
             "status": "ok",
             "statsYm": latest_ym or "",
             "regions": len(scored_dongs),
-            "bokjiro": sum(bokjiro_counts),
+            "bokjiroLocal": sum(bokjiro_counts),
+            "bokjiroCentral": central_count,
             "welfareFacilities": sum(fclt_counts),
             "libraries": sum(lib_counts),
+            "cultureFacilities": sum(culture_counts),
+            "kmooc": kmooc_count,
+            "arte": arte_count,
             "kakaoFacilities": sum(kakao_counts),
         }
         logger.info("[sync_public] 실데이터 통합 동기화 완료: %s", summary)
