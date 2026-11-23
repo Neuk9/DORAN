@@ -1,42 +1,71 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import desc, select
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, HTTPException, Query
 
-from app.deps import get_db
-from app.models import GapIndex, Region
-from app.schemas import envelope
-from app.services.explain import explain_gap
+from app.core.db import get_db
+from app.models.schemas import ApiResponse, RegionStatOut
+from app.services.gap import build_region_report
+from app.services.kakao_places import reverse_geocode
 
-router = APIRouter(prefix="/regions", tags=["regions"])
+router = APIRouter(prefix="/api/regions", tags=["regions"])
 
 
-@router.get("/search")
-def search_regions(q: str = Query(default="", max_length=50), db: Session = Depends(get_db)):
-    stmt = select(Region).order_by(Region.name).limit(20)
-    if q:
-        stmt = stmt.where(Region.name.ilike(f"%{q}%"))
-    rows = db.execute(stmt).scalars().all()
-    data = [{"adm_cd": r.adm_cd, "name": r.name, "level": r.level} for r in rows]
-    return envelope(data, "region")
+@router.get("", response_model=ApiResponse)
+async def list_regions(sigungu: str | None = None) -> ApiResponse:
+    db = get_db()
+    query = {"sigungu": sigungu} if sigungu else {}
+    cursor = db["region_stats"].find(query).sort("scores.gapIndex", -1)
+    regions: list[dict] = []
+    async for doc in cursor:
+        doc.pop("_id", None)
+        regions.append(RegionStatOut.model_validate(doc).model_dump(mode="json"))
+    return ApiResponse(data=regions, meta={"count": len(regions)})
 
 
-@router.get("/{adm_cd}/gap")
-def region_gap(adm_cd: str, db: Session = Depends(get_db)):
-    row = db.execute(
-        select(GapIndex).where(GapIndex.adm_cd == adm_cd).order_by(desc(GapIndex.period)).limit(1)
-    ).scalar_one_or_none()
-    if row is None:
-        raise HTTPException(status_code=404, detail="REGION_NOT_FOUND")
-    region = db.get(Region, adm_cd)
-    narrative = explain_gap(row, [])
-    data = {
-        "adm_cd": row.adm_cd,
-        "name": region.name if region else None,
-        "period": row.period,
-        "demand_score": row.demand_score,
-        "supply_score": row.supply_score,
-        "gap_score": row.gap_score,
-        "categories": row.category_scores or {},
-        "narrative": narrative,
-    }
-    return envelope(data, "gap_index")
+@router.get("/nearest", response_model=ApiResponse)
+async def get_nearest_region(
+    lat: float = Query(..., ge=-90.0, le=90.0),
+    lng: float = Query(..., ge=-180.0, le=180.0),
+) -> ApiResponse:
+    """사용자 GPS 좌표(lat, lng)에서 가장 가까운 행정동을 반환합니다."""
+    db = get_db()
+    pipeline = [
+        {
+            "$geoNear": {
+                "near": {"type": "Point", "coordinates": [lng, lat]},
+                "distanceField": "distMeters",
+                "spherical": True,
+            }
+        },
+        {"$limit": 1},
+    ]
+    cursor = await db["region_stats"].aggregate(pipeline)
+    nearest_doc = None
+    async for doc in cursor:
+        nearest_doc = doc
+        break
+
+    if nearest_doc is None:
+        raise HTTPException(status_code=404, detail="등록된 행정동 데이터가 없습니다.")
+
+    dist_km = round(float(nearest_doc.pop("distMeters", 0.0)) / 1000.0, 2)
+    nearest_doc.pop("_id", None)
+    region = RegionStatOut.model_validate(nearest_doc)
+    in_service_area = dist_km <= 25.0
+    actual_region = await reverse_geocode(lat, lng)
+    return ApiResponse(
+        data={
+            "region": region.model_dump(mode="json"),
+            "actualRegion": actual_region,
+            "distanceKm": dist_km,
+            "inServiceArea": in_service_area,
+        },
+        meta={"lat": lat, "lng": lng},
+    )
+
+
+@router.get("/{adm_cd}/report", response_model=ApiResponse)
+async def get_region_report(adm_cd: str) -> ApiResponse:
+    db = get_db()
+    report = await build_region_report(db, adm_cd)
+    if report is None:
+        raise HTTPException(status_code=404, detail="해당 행정동 통계 데이터를 찾을 수 없습니다.")
+    return ApiResponse(data=report.model_dump(mode="json"), meta={"admCd": adm_cd})

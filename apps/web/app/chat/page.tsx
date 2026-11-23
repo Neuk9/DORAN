@@ -1,132 +1,295 @@
 "use client";
 
-import { useState } from "react";
-
-import { CrisisBanner } from "@/components/CrisisBanner";
+import { Suspense, useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { AlertTriangle, PhoneCall, Send, ShieldCheck, SlidersHorizontal, Sparkles } from "lucide-react";
+import { useApp } from "@/components/AppContext";
 import { ProgramCard } from "@/components/ProgramCard";
-import type { Program } from "@/lib/api";
+import { postChatRecommend } from "@/lib/api";
+import {
+  CATEGORY_LABELS,
+  GROUP_LABELS,
+  TIME_LABELS,
+  type CategoryType,
+  type ChatRecommendResponse,
+  type UserProfile,
+} from "@/lib/types";
 
-const API = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+const QUICK_SAMPLES = [
+  "서울 구로구에 사는 20대 대학생인데, 주말에 무료로 악기를 배울 수 있는 곳이나 청년 지원금이 있을까?",
+  "가리봉동 70세 독거 어르신인데 돌봄 서비스랑 무료 스마트폰 교실 찾고 있어요",
+  "개봉동 맞벌이 가족인데 아이돌봄 서비스나 주말 어린이 도서관 프로그램 있을까요?",
+  "며칠째 단전되고 너무 힘들어서 죽고 싶어요",
+];
 
-type SlotState = {
-  region_adm_cd?: string | null;
-  age_years?: number | null;
-  missing_slots?: string[];
-};
-
-const SLOT_LABEL: Record<string, string> = {
-  region_adm_cd: "동네",
-  age_years: "나이",
-  care_need: "돌봄 필요",
-  budget_krw: "예산",
-};
-
-export default function ChatPage() {
-  const [message, setMessage] = useState("");
-  const [cards, setCards] = useState<Program[]>([]);
-  const [reply, setReply] = useState("");
-  const [slots, setSlots] = useState<SlotState | null>(null);
-  const [crisis, setCrisis] = useState<string[] | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+function ChatContent() {
+  const searchParams = useSearchParams();
+  const { selectedAdmCd } = useApp();
+  const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [sessionId] = useState(() => crypto.randomUUID());
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<ChatRecommendResponse | null>(null);
+  const [editableProfile, setEditableProfile] = useState<UserProfile | null>(null);
 
-  async function send() {
-    if (!message.trim() || loading) return;
-    setLoading(true);
-    setCards([]);
-    setReply("");
-    setCrisis(null);
-    setNotice(null);
-    setSlots(null);
-
-    try {
-      const res = await fetch(`${API}/api/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message, session_id: sessionId }),
-      });
-      if (!res.body) throw new Error("no stream");
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const parts = buffer.split("\n\n");
-        buffer = parts.pop() ?? "";
-        for (const part of parts) {
-          const eventLine = part.split("\n").find((l) => l.startsWith("event: "));
-          const dataLine = part.split("\n").find((l) => l.startsWith("data: "));
-          if (!eventLine || !dataLine) continue;
-          const event = eventLine.slice(7).trim();
-          const data = JSON.parse(dataLine.slice(6));
-          if (event === "slot_update") setSlots(data);
-          if (event === "cards") setCards(data.items ?? []);
-          if (event === "message_delta") setReply(data.text ?? "");
-          if (event === "crisis") setCrisis(data.hotlines ?? []);
-          if (event === "fallback") setNotice(data.message ?? "잠시 후 다시 시도해 주세요.");
-        }
+  const runRecommend = useCallback(
+    async (message: string, overrideProfile?: UserProfile) => {
+      if (!message.trim()) return;
+      setLoading(true);
+      setError(null);
+      try {
+        const data = await postChatRecommend({
+          message: message.trim(),
+          admCd: selectedAdmCd,
+          overrideProfile,
+          limit: 8,
+        });
+        setResult(data);
+        setEditableProfile(data.profile || null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "추천 요청 중 오류가 발생했습니다.");
+      } finally {
+        setLoading(false);
       }
-    } catch {
-      setNotice("상담 연결에 실패했습니다. 잠시 후 다시 시도해 주세요.");
-    } finally {
-      setLoading(false);
+    },
+    [selectedAdmCd],
+  );
+
+  useEffect(() => {
+    const initialQ = searchParams.get("q");
+    if (initialQ) {
+      setInput(initialQ);
+      void runRecommend(initialQ);
     }
-  }
+  }, [searchParams, runRecommend]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    void runRecommend(input);
+  };
+
+  const toggleCategoryChip = (cat: CategoryType) => {
+    if (!editableProfile) return;
+    const exists = editableProfile.categories.includes(cat);
+    const nextCategories = exists
+      ? editableProfile.categories.filter((c) => c !== cat)
+      : [...editableProfile.categories, cat];
+    const nextProfile = { ...editableProfile, categories: nextCategories };
+    setEditableProfile(nextProfile);
+    void runRecommend(input || "조건 재검색", nextProfile);
+  };
+
+  const toggleFreeChip = () => {
+    if (!editableProfile) return;
+    const nextProfile = { ...editableProfile, preferFree: !editableProfile.preferFree };
+    setEditableProfile(nextProfile);
+    void runRecommend(input || "조건 재검색", nextProfile);
+  };
 
   return (
-    <main>
-      <h1>AI 복지 상담</h1>
-      <p className="muted">
-        상황을 편하게 적어 주세요. 예: “초1 아이 방학 때 맡길 곳, 나는 7시 퇴근”
-      </p>
+    <div className="space-y-6">
+      <section className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h1 className="text-2xl font-extrabold text-stone-900">AI 맞춤형 공공자원 상담</h1>
+            <p className="mt-1 text-sm text-stone-600">
+              거주지, 연령, 상황, 원하는 도움을 일상 말로 적어주세요. 전화번호·주민번호 등은 자동 마스킹되며
+              원문은 저장되지 않습니다.
+            </p>
+          </div>
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-teal-50 px-3 py-1 text-xs font-bold text-teal-800">
+            <ShieldCheck className="h-4 w-4" />
+            원문 미저장 · PII 자동 보호
+          </span>
+        </div>
 
-      <label htmlFor="chat-input" className="small">
-        상담 내용
-      </label>
-      <textarea
-        id="chat-input"
-        role="textbox"
-        value={message}
-        onChange={(e) => setMessage(e.target.value)}
-        rows={3}
-        style={{ width: "100%", marginTop: "0.5rem", padding: "0.75rem" }}
-        placeholder="예: 혼자 사는 68살인데 도움받을 게 있을까요"
-      />
-      <button
-        type="button"
-        onClick={send}
-        disabled={loading}
-        style={{ marginTop: "0.75rem", minHeight: "2.75rem", padding: "0 1.25rem" }}
-      >
-        {loading ? "찾는 중…" : "보내기"}
-      </button>
+        <form onSubmit={handleSubmit} className="mt-4 space-y-3">
+          <label htmlFor="chat-textarea" className="sr-only">
+            상담 내용 입력
+          </label>
+          <textarea
+            id="chat-textarea"
+            rows={3}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="예: 서울 구로구에 사는 20대 대학생인데, 주말에 무료로 악기를 배울 수 있는 곳이나 청년 지원금이 있을까?"
+            className="w-full rounded-2xl border border-stone-300 bg-stone-50 p-4 text-sm text-stone-900 placeholder-stone-400 focus:border-teal-700 focus:bg-white sm:text-base"
+          />
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap gap-1.5">
+              {QUICK_SAMPLES.map((sample, idx) => (
+                <button
+                  key={sample}
+                  type="button"
+                  onClick={() => {
+                    setInput(sample);
+                    void runRecommend(sample);
+                  }}
+                  className={`rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors ${
+                    idx === 3
+                      ? "border-rose-200 bg-rose-50 text-rose-800 hover:bg-rose-100"
+                      : "border-stone-200 bg-stone-50 text-stone-700 hover:bg-stone-100"
+                  }`}
+                >
+                  {idx === 3 ? "위기 대응 테스트" : `예시 ${idx + 1}`}
+                </button>
+              ))}
+            </div>
+            <button
+              type="submit"
+              disabled={loading || !input.trim()}
+              className="inline-flex items-center gap-2 rounded-xl bg-teal-700 px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-teal-800 disabled:opacity-50"
+            >
+              <Send className="h-4 w-4" />
+              <span>{loading ? "분석 중..." : "맞춤 추천 받기"}</span>
+            </button>
+          </div>
+        </form>
+      </section>
 
-      {crisis && <CrisisBanner hotlines={crisis} />}
-      {notice && <p className="alert">{notice}</p>}
-      {reply && <p>{reply}</p>}
+      {error ? (
+        <div role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+          {error}
+        </div>
+      ) : null}
 
-      {slots && (slots.missing_slots?.length ?? 0) > 0 && (
-        <p>
-          {slots.missing_slots?.map((slot) => (
-            <span className="chip" key={slot}>
-              {SLOT_LABEL[slot] ?? slot} 알려주세요
-            </span>
-          ))}
-        </p>
-      )}
+      {/* 위기 신호 감지 즉시 안내 */}
+      {result?.crisis?.detected ? (
+        <section
+          role="alert"
+          className="rounded-3xl border-2 border-rose-500 bg-rose-50 p-6 shadow-md"
+        >
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 h-7 w-7 shrink-0 text-rose-600" />
+            <div className="space-y-4">
+              <div>
+                <h2 className="text-xl font-extrabold text-rose-900">긴급 지원 안내</h2>
+                <p className="mt-1 text-sm font-medium text-rose-800">{result.crisis.message}</p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {result.crisis.contacts.map((c) => (
+                  <a
+                    key={c.number}
+                    href={`tel:${c.number}`}
+                    className="flex flex-col justify-between rounded-2xl border border-rose-200 bg-white p-4 shadow-sm transition-colors hover:border-rose-400"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-stone-900">{c.name}</span>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-rose-600 px-2.5 py-0.5 text-sm font-extrabold text-white">
+                        <PhoneCall className="h-3.5 w-3.5" />
+                        {c.number}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-xs text-stone-600">{c.description}</p>
+                  </a>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+      ) : null}
 
-      <div className="grid" style={{ marginTop: "1.5rem" }}>
-        {cards.map((program) => (
-          <ProgramCard key={program.offering_id} program={program} />
-        ))}
-      </div>
+      {/* 추출된 조건 구조화 + 조건 칩 수정 */}
+      {result && !result.crisis && editableProfile ? (
+        <section className="rounded-2xl border border-teal-200 bg-teal-50/60 p-5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-sm font-bold text-teal-900">
+              <SlidersHorizontal className="h-4 w-4" />
+              <span>AI가 추출한 조건 (칩을 눌러 바로 재검색할 수 있습니다)</span>
+            </div>
+            <span className="text-xs font-medium text-teal-700">엔진: {result.provider} + 결정론 룰</span>
+          </div>
 
-      <p className="small muted" style={{ marginTop: "1.5rem" }}>
-        AI 상담 내용은 저장하지 않으며, 개인정보는 마스킹 후 처리됩니다.
-      </p>
-    </main>
+          <div className="mt-3 flex flex-wrap gap-2 text-xs">
+            {editableProfile.sigungu ? (
+              <span className="rounded-full bg-white px-3 py-1 font-semibold text-stone-800 shadow-xs">
+                지역: {editableProfile.sido} {editableProfile.sigungu} {editableProfile.dong || ""}
+              </span>
+            ) : null}
+            {editableProfile.age ? (
+              <span className="rounded-full bg-white px-3 py-1 font-semibold text-stone-800 shadow-xs">
+                추정 연령: 만 {editableProfile.age}세
+              </span>
+            ) : null}
+            {editableProfile.targetGroups.map((g) => (
+              <span key={g} className="rounded-full bg-white px-3 py-1 font-semibold text-stone-800 shadow-xs">
+                유형: {GROUP_LABELS[g] || g}
+              </span>
+            ))}
+            {editableProfile.timePreferences.map((t) => (
+              <span key={t} className="rounded-full bg-white px-3 py-1 font-semibold text-stone-800 shadow-xs">
+                시간: {TIME_LABELS[t] || t}
+              </span>
+            ))}
+          </div>
+
+          <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-teal-200/70 pt-3">
+            <span className="text-xs font-semibold text-teal-900">빠른 조정:</span>
+            {(["welfare", "education", "culture"] as CategoryType[]).map((cat) => {
+              const active = editableProfile.categories.includes(cat);
+              return (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => toggleCategoryChip(cat)}
+                  className={`rounded-full px-3 py-1 text-xs font-bold transition-colors ${
+                    active
+                      ? "bg-teal-700 text-white"
+                      : "border border-teal-300 bg-white text-teal-800 hover:bg-teal-100"
+                  }`}
+                >
+                  {CATEGORY_LABELS[cat]}
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              onClick={toggleFreeChip}
+              className={`rounded-full px-3 py-1 text-xs font-bold transition-colors ${
+                editableProfile.preferFree
+                  ? "bg-amber-500 text-stone-950"
+                  : "border border-amber-300 bg-white text-amber-900 hover:bg-amber-50"
+              }`}
+            >
+              무료·지원금 우선
+            </button>
+          </div>
+        </section>
+      ) : null}
+
+      {/* 추천 결과 목록 */}
+      {result && !result.crisis ? (
+        <section className="space-y-4">
+          <div className="flex items-center gap-2 text-sm font-semibold text-stone-700">
+            <Sparkles className="h-4 w-4 text-teal-700" />
+            <span>{result.summaryMessage}</span>
+          </div>
+
+          {result.recommendations.length > 0 ? (
+            <div className="grid gap-4 md:grid-cols-2">
+              {result.recommendations.map((rec) => (
+                <ProgramCard
+                  key={rec.program.id}
+                  program={rec.program}
+                  eligibility={rec.eligibility}
+                  explanation={rec.explanation}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-stone-200 bg-white p-8 text-center text-sm text-stone-600">
+              조건에 맞는 자원이 없습니다. 위 빠른 조정 버튼으로 분야를 넓혀 보세요.
+            </div>
+          )}
+        </section>
+      ) : null}
+    </div>
+  );
+}
+
+export default function ChatPage() {
+  return (
+    <Suspense fallback={<div className="h-64 animate-pulse rounded-2xl bg-white" />}>
+      <ChatContent />
+    </Suspense>
   );
 }

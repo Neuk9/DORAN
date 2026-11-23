@@ -8,14 +8,6 @@ updates:
     groups:
       api-deps:
         patterns: ["*"]
-  - package-ecosystem: "uv"
-    directory: "/packages/etl"
-    schedule:
-      interval: "monthly"
-    open-pull-requests-limit: 2
-    groups:
-      etl-deps:
-        patterns: ["*"]
   - package-ecosystem: "npm"
     directory: "/apps/web"
     schedule:

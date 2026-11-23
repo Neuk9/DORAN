@@ -1,113 +1,156 @@
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
+from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import or_, select
-from sqlalchemy.orm import Session
+from bson import ObjectId
+from fastapi import APIRouter, HTTPException, Query
 
-from app.deps import get_db
-from app.models import EligibilityRule, Offering, Resource
-from app.schemas import envelope
-from app.services.geo import distance_from
-from app.timeutil import end_of_day_kst, now_kst
+from app.core.db import get_db
+from app.models.schemas import ApiResponse, CategoryType, CostType, ProgramOut
+from app.services.eligibility import is_program_open
+from app.services.gap import serialize_program
+from app.services.kakao_places import fetch_nearby_public_places
 
-router = APIRouter(prefix="/programs", tags=["programs"])
-
-
-def _summary(
-    offering: Offering, resource: Resource, lat: float | None = None, lng: float | None = None
-) -> dict:
-    return {
-        "offering_id": offering.id,
-        "resource_id": resource.id,
-        "title": offering.title,
-        "category": resource.category,
-        "provider": resource.provider,
-        "address": resource.address,
-        "fee": offering.fee,
-        "apply_end": offering.apply_end.isoformat() if offering.apply_end else None,
-        "distance_km": distance_from(lat, lng, resource.adm_cd, resource.lat, resource.lng),
-        "lat": resource.lat,
-        "lng": resource.lng,
-        "source": offering.source_dataset,
-        "captured_at": resource.updated_at.isoformat() if resource.updated_at else None,
-    }
+router = APIRouter(prefix="/api/programs", tags=["programs"])
+KST = timezone(timedelta(hours=9))
 
 
-@router.get("")
-def list_programs(
-    adm_cd: str | None = None,
-    category: str | None = None,
+@router.get("", response_model=ApiResponse)
+async def list_programs(
+    category: CategoryType | None = None,
+    costType: CostType | None = None,
+    timeSlot: str | None = None,
+    sigungu: str | None = None,
+    admCd: str | None = None,
     q: str | None = None,
-    max_fee: int | None = None,
-    weekday: int | None = Query(default=None, ge=0, le=6),
-    deadline_within_days: int | None = Query(default=None, ge=0),
+    includeClosed: bool = False,
+    includeOnline: bool = False,
     lat: float | None = None,
     lng: float | None = None,
-    max_distance_km: float | None = None,
-    page: int = Query(default=1, ge=1),
-    size: int = Query(default=20, ge=1, le=50),
-    db: Session = Depends(get_db),
-):
-    now = now_kst()
-    stmt = (
-        select(Offering, Resource)
-        .join(Resource, Offering.resource_id == Resource.id)
-        .where(Offering.status != "expired")
-        .where(or_(Offering.apply_end.is_(None), Offering.apply_end >= now))
-    )
-    if adm_cd:
-        stmt = stmt.where(Resource.adm_cd == adm_cd)
+    radiusKm: float = Query(default=5.0, ge=0.5, le=50.0),
+    limit: int = Query(default=30, ge=1, le=100),
+) -> ApiResponse:
+    db = get_db()
+    match_filter: dict[str, Any] = {}
+
     if category:
-        stmt = stmt.where(Resource.category == category)
-    if q:
-        pattern = f"%{q}%"
-        stmt = stmt.where(or_(Offering.title.ilike(pattern), Resource.name.ilike(pattern)))
-    if max_fee is not None:
-        stmt = stmt.where(Offering.fee <= max_fee)
-    if weekday is not None:
-        stmt = stmt.where(Offering.days_of_week.contains([weekday]))
-    if deadline_within_days is not None:
-        stmt = stmt.where(
-            Offering.apply_end.is_not(None),
-            Offering.apply_end <= end_of_day_kst(now.date() + timedelta(days=deadline_within_days)),
+        match_filter["category"] = category
+    if costType:
+        match_filter["cost.type"] = costType
+    if timeSlot:
+        match_filter["schedule.timeSlots"] = timeSlot
+    if admCd:
+        match_filter["$or"] = [
+            {"region.admCd": admCd},
+            {"region.admCd": f"{admCd[:5]}00000"},
+            {"region.isNationwide": True},
+        ]
+    elif sigungu:
+        match_filter["$or"] = [
+            {"region.sigungu": sigungu},
+            {"region.isNationwide": True},
+        ]
+    if q and q.strip():
+        keyword = q.strip()
+        text_or = [
+            {"title": {"$regex": keyword, "$options": "i"}},
+            {"summary": {"$regex": keyword, "$options": "i"}},
+            {"tags": {"$regex": keyword, "$options": "i"}},
+            {"provider": {"$regex": keyword, "$options": "i"}},
+        ]
+        if "$or" in match_filter:
+            match_filter = {"$and": [match_filter, {"$or": text_or}]}
+        else:
+            match_filter["$or"] = text_or
+
+    programs: list[ProgramOut] = []
+
+    if lat is not None and lng is not None:
+        pipeline: list[dict[str, Any]] = [
+            {
+                "$geoNear": {
+                    "near": {"type": "Point", "coordinates": [lng, lat]},
+                    "distanceField": "distMeters",
+                    "maxDistance": int(radiusKm * 1000),
+                    "spherical": True,
+                    "query": match_filter,
+                }
+            },
+            {"$limit": limit},
+        ]
+        cursor = await db["programs"].aggregate(pipeline)
+        async for doc in cursor:
+            dist_m = doc.pop("distMeters", None)
+            prog = serialize_program(doc)
+            if dist_m is not None:
+                prog.distanceKm = round(float(dist_m) / 1000.0, 2)
+            programs.append(prog)
+
+        # 실시간 카카오 공공시설 보강 (전국 어디서든 내 위치 주변 공공시설 표시)
+        live_places = await fetch_nearby_public_places(
+            lat=lat,
+            lng=lng,
+            categories=[category] if category else None,
+            keywords=[q.strip()] if q and q.strip() else None,
+            radius_m=int(radiusKm * 1000),
+            limit=8,
+            db=db,
         )
+        existing_titles = {p.provider for p in programs}
+        for place in live_places:
+            if place.provider not in existing_titles:
+                programs.append(place)
+                existing_titles.add(place.provider)
+        programs.sort(key=lambda p: p.distanceKm if p.distanceKm is not None else 999.0)
 
-    stmt = stmt.order_by(Offering.apply_end.is_(None), Offering.apply_end, Offering.title)
-    rows = db.execute(stmt.offset((page - 1) * size).limit(size)).all()
-    data = [_summary(o, r, lat, lng) for o, r in rows]
-    if max_distance_km is not None:
-        data = [d for d in data if d["distance_km"] is not None and d["distance_km"] <= max_distance_km]
-    return envelope(data, "offering")
+        if includeOnline:
+            geo_cap = max(limit - 6, 8)
+            programs = programs[:geo_cap]
+            online_filter = (
+                {
+                    "$and": [
+                        match_filter,
+                        {"$or": [{"location": {"$exists": False}}, {"location": None}]},
+                    ]
+                }
+                if match_filter
+                else {"$or": [{"location": {"$exists": False}}, {"location": None}]}
+            )
+            seen_ids = {p.id for p in programs}
+            online_cursor = db["programs"].find(online_filter).limit(6)
+            async for doc in online_cursor:
+                prog = serialize_program(doc)
+                if prog.id not in seen_ids:
+                    programs.append(prog)
+                    seen_ids.add(prog.id)
+    else:
+        cursor = db["programs"].find(match_filter).limit(limit * 2)
+        async for doc in cursor:
+            programs.append(serialize_program(doc))
+
+    now_kst = datetime.now(KST)
+    if not includeClosed:
+        programs = [p for p in programs if is_program_open(p, now=now_kst)]
+
+    programs = programs[:limit]
+    return ApiResponse(
+        data=[p.model_dump(mode="json") for p in programs],
+        meta={"count": len(programs), "includeClosed": includeClosed},
+    )
 
 
-@router.get("/{offering_id}")
-def get_program(offering_id: str, db: Session = Depends(get_db)):
-    row = db.execute(
-        select(Offering, Resource)
-        .join(Resource, Offering.resource_id == Resource.id)
-        .where(Offering.id == offering_id)
-    ).first()
-    if row is None:
-        raise HTTPException(status_code=404, detail="PROGRAM_NOT_FOUND")
-    offering, resource = row
-    rule = db.get(EligibilityRule, (resource.id, "v1"))
-    now = now_kst()
-    stale = bool(resource.updated_at and (now - resource.updated_at).days > 90)
-    data = {
-        **_summary(offering, resource),
-        "description": offering.description,
-        "target_age_min": offering.target_age_min,
-        "target_age_max": offering.target_age_max,
-        "target_group": offering.target_group,
-        "capacity": offering.capacity,
-        "days_of_week": offering.days_of_week or [],
-        "apply_start": offering.apply_start.isoformat() if offering.apply_start else None,
-        "phone": resource.phone,
-        "homepage": resource.homepage,
-        "apply_url": resource.apply_url,
-        "target_text": resource.target_text,
-        "eligibility": rule.rule_json if rule else None,
-        "eligibility_state": "needs_check",
-        "stale": stale,
-    }
-    return envelope(data, offering.source_dataset, resource.updated_at)
+@router.get("/{program_id}", response_model=ApiResponse)
+async def get_program(program_id: str) -> ApiResponse:
+    db = get_db()
+    doc = None
+    if ObjectId.is_valid(program_id):
+        doc = await db["programs"].find_one({"_id": ObjectId(program_id)})
+    if doc is None:
+        doc = await db["programs"].find_one({"externalId": program_id})
+    if doc is None:
+        raise HTTPException(status_code=404, detail="프로그램을 찾을 수 없습니다.")
+
+    prog = serialize_program(doc)
+    return ApiResponse(
+        data=prog.model_dump(mode="json"),
+        meta={"isOpen": is_program_open(prog)},
+    )

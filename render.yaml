@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: doran-api
+    runtime: docker
+    region: singapore
+    plan: free
+    rootDir: apps/api
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: MONGODB_URI
+        sync: false
+      - key: MONGODB_DB
+        value: doran
+      - key: AUTO_SEED_IF_EMPTY
+        value: "true"
+      - key: LLM_PROVIDER
+        value: mock
+      - key: LLM_BASE_URL
+        value: https://api.openai.com/v1
+      - key: LLM_API_KEY
+        sync: false
+      - key: LLM_MODEL
+        value: gpt-4o-mini
+      - key: CORS_ORIGINS
+        value: http://localhost:3000
+      - key: CORS_ORIGIN_REGEX
+        value: https://.*\.vercel\.app
+      - key: KAKAO_API_KEY
+        sync: false
+      - key: DATA_GO_KR_KEY
+        sync: false
