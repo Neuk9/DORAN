@@ -36,7 +36,7 @@ const PIN_COLOR: Record<Program["category"], string> = {
   culture: "#d97706",
 };
 
-const CARTO_VOYAGER_TILE = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
+const MAP_TILE_URL = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
 
 function escapeHtml(value: string): string {
   return value
@@ -315,8 +315,8 @@ export default function InteractiveAIMap({
 
     const map = L.map(containerRef.current, { zoomControl: false }).setView([anchor.lat, anchor.lng], 13);
     L.control.zoom({ position: "bottomright" }).addTo(map);
-    L.tileLayer(CARTO_VOYAGER_TILE, {
-      attribution: "&copy; OpenStreetMap &copy; CARTO",
+    L.tileLayer(MAP_TILE_URL, {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
       maxZoom: 19,
     }).addTo(map);
 

@@ -304,11 +304,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         <div
           role="status"
           aria-live="polite"
-          className="fixed bottom-20 left-1/2 z-[70] flex -translate-x-1/2 items-center gap-3 rounded-2xl bg-[#191f28] px-5 py-3 text-sm font-semibold text-white shadow-xl md:bottom-7"
+          className="fixed bottom-20 left-1/2 z-[70] flex -translate-x-1/2 items-center gap-3 rounded-2xl bg-ink px-5 py-3 text-sm font-semibold text-white shadow-xl md:bottom-7"
         >
           <span>{toast.message}</span>
           {toast.href && toast.hrefLabel ? (
-            <Link href={toast.href} className="font-bold text-teal-300 underline underline-offset-2">
+            <Link href={toast.href} className="font-bold text-brand-light underline underline-offset-2">
               {toast.hrefLabel}
             </Link>
           ) : null}

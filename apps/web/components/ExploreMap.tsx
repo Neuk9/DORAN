@@ -16,7 +16,7 @@ const PIN_COLOR = {
   culture: "#d97706",
 };
 
-const CARTO_VOYAGER_TILE = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
+const MAP_TILE_URL = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
 
 export default function ExploreMap({ programs, center = [37.492, 126.888] }: ExploreMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -83,8 +83,8 @@ export default function ExploreMap({ programs, center = [37.492, 126.888] }: Exp
 
     if (!leafletMapRef.current) {
       leafletMapRef.current = L.map(containerRef.current).setView(center, 13);
-      L.tileLayer(CARTO_VOYAGER_TILE, {
-        attribution: "&copy; OpenStreetMap &copy; CARTO",
+      L.tileLayer(MAP_TILE_URL, {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
         maxZoom: 19,
       }).addTo(leafletMapRef.current);
     } else {
@@ -142,7 +142,7 @@ export default function ExploreMap({ programs, center = [37.492, 126.888] }: Exp
     <div
       ref={containerRef}
       aria-label="공공자원 위치 지도"
-      className="h-[500px] w-full overflow-hidden rounded-2xl border border-[#dfe4ea] bg-[#eef1f5]"
+      className="h-[500px] w-full overflow-hidden rounded-2xl border border-line bg-fill"
     />
   );
 }
