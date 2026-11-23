@@ -1,3 +1,6 @@
+import math
+from statistics import median
+
 from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.schemas import (
@@ -14,6 +17,88 @@ CATEGORY_KR = {
     "education": "교육",
     "culture": "문화",
 }
+
+
+def compute_region_scores(region_docs: list[dict]) -> list[dict]:
+    """행정동별 인구 분포(수요)와 실제 공공시설·프로그램 수(공급)로 수요·공급·격차 지수를 동적 산출합니다.
+
+    - 수요 원점수 D_raw = 0.45 * 고령자비율 + 0.35 * 취약추정비율 + 0.20 * 청년비율
+    - 공급 원점수 S_raw = 분야별(복지 0.40, 교육 0.30, 문화 0.30)의
+      [0.60 * ln(1 + 인구 1만명당 공급수) + 0.40 * ln(1 + 절대 공급수)] 가중합
+    - 권역 내 Min-Max 정규화: 수요 [35, 92], 공급 [20, 88]
+    - 격차 지수 G = 수요 지수 - 공급 지수
+    """
+    if not region_docs:
+        return []
+
+    raw_demands: list[float] = []
+    raw_supplies: list[float] = []
+    per10k_by_cat: dict[CategoryType, list[float]] = {
+        "welfare": [],
+        "education": [],
+        "culture": [],
+    }
+
+    for doc in region_docs:
+        pop = doc["population"]
+        sup = doc["supply"]
+        total = max(int(pop["total"]), 1)
+        senior_ratio = float(pop["senior"]) / total
+        youth_ratio = float(pop["youth"]) / total
+        vuln_ratio = float(pop["vulnerableRatio"])
+
+        d_raw = senior_ratio * 0.45 + vuln_ratio * 0.35 + youth_ratio * 0.20
+        raw_demands.append(d_raw)
+
+        cat_weights: dict[CategoryType, float] = {
+            "welfare": 0.40,
+            "education": 0.30,
+            "culture": 0.30,
+        }
+        s_raw = 0.0
+        for cat, weight in cat_weights.items():
+            cnt = max(int(sup.get(cat, 0)), 0)
+            p10k = (cnt / total) * 10000.0
+            per10k_by_cat[cat].append(p10k)
+            s_raw += weight * (0.60 * math.log1p(p10k) + 0.40 * math.log1p(cnt))
+        raw_supplies.append(s_raw)
+
+    d_min, d_max = min(raw_demands), max(raw_demands)
+    s_min, s_max = min(raw_supplies), max(raw_supplies)
+    d_span = d_max - d_min
+    s_span = s_max - s_min
+
+    med_per10k: dict[CategoryType, float] = {
+        cat: median(vals) if vals else 0.0 for cat, vals in per10k_by_cat.items()
+    }
+
+    updated: list[dict] = []
+    for idx, doc in enumerate(region_docs):
+        d_norm = 62.0 if d_span < 1e-9 else 35.0 + ((raw_demands[idx] - d_min) / d_span) * 57.0
+        s_norm = 55.0 if s_span < 1e-9 else 20.0 + ((raw_supplies[idx] - s_min) / s_span) * 68.0
+        demand_idx = round(d_norm, 1)
+        supply_idx = round(s_norm, 1)
+        gap_idx = round(demand_idx - supply_idx, 1)
+
+        sup = doc["supply"]
+        shortages: list[CategoryType] = []
+        for cat in ("culture", "education", "welfare"):
+            cnt = int(sup.get(cat, 0))
+            p10k = per10k_by_cat[cat][idx]
+            med = med_per10k[cat]
+            if cnt == 0 or (gap_idx > 0 and (p10k < med * 0.88 or cnt <= 1)):
+                shortages.append(cat)
+
+        out_doc = dict(doc)
+        out_doc["scores"] = {
+            "demandIndex": demand_idx,
+            "supplyIndex": supply_idx,
+            "gapIndex": gap_idx,
+            "shortageCategories": shortages,
+        }
+        updated.append(out_doc)
+
+    return updated
 
 FACILITY_BLUEPRINTS: list[dict] = [
     # --- 어르신(고령층) 필수 인프라 ---
@@ -303,11 +388,18 @@ async def build_region_report(db: AsyncDatabase, adm_cd: str) -> RegionReportOut
         f"인구 구성은 청년 {youth_ratio}%, 어르신 {senior_ratio}%, 취약계층 비율 {round(region.population.vulnerableRatio * 100, 1)}%입니다."
     )
 
+    formula_summary = (
+        f"격차({region.scores.gapIndex:+.1f}) = 수요({region.scores.demandIndex}) − 공급({region.scores.supplyIndex}) | "
+        f"수요: 고령자({senior_ratio}%)×0.45 + 취약계층({round(region.population.vulnerableRatio * 100, 1)}%)×0.35 + 청년({youth_ratio}%)×0.20 권역 정규화 | "
+        f"공급: 인구 1만명당 복지({region.supply.welfare}곳)·교육({region.supply.education}곳)·문화({region.supply.culture}곳) 밀도 및 커버리지 정규화"
+    )
+
     return RegionReportOut(
         region=region,
         liveProgramCounts=live_supply,
         recentDemandSignals=demand_signals,
         nearbyRecommended=nearby_programs,
         recommendedFacilities=recommended_facilities,
+        formulaSummary=formula_summary,
         insights=insights,
     )

@@ -86,6 +86,12 @@ export async function fetchRegionReport(admCd: string): Promise<RegionReport> {
   return requestJson<RegionReport>(`/api/regions/${encodeURIComponent(admCd)}/report`);
 }
 
+export async function triggerPublicSync(): Promise<Record<string, unknown>> {
+  return requestJson<Record<string, unknown>>("/api/regions/sync", {
+    method: "POST",
+  });
+}
+
 export async function postChatRecommend(payload: {
   message: string;
   admCd?: string;
