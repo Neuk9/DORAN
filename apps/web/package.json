@@ -1,31 +1,32 @@
 {
   "name": "doran-web",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3000",
+    "dev": "next dev --turbopack",
     "build": "next build",
-    "start": "next start -p 3000",
-    "test:e2e": "playwright test",
-    "lint": "eslint .",
-    "typecheck": "tsc --noEmit",
-    "format": "prettier --write \"app/**/*.{ts,tsx,css}\" \"components/**/*.{ts,tsx}\" \"lib/**/*.ts\" \"e2e/**/*.ts\"",
-    "format:check": "prettier --check \"app/**/*.{ts,tsx,css}\" \"components/**/*.{ts,tsx}\" \"lib/**/*.ts\" \"e2e/**/*.ts\""
+    "start": "next start",
+    "lint": "eslint ."
   },
   "dependencies": {
     "leaflet": "^1.9.4",
-    "next": "^15.1.0",
+    "lucide-react": "^0.468.0",
+    "next": "^15.1.6",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "recharts": "^2.15.0"
   },
   "devDependencies": {
-    "@playwright/test": "^1.49.0",
-    "@types/leaflet": "^1.9.22",
+    "@eslint/eslintrc": "^3.3.7",
+    "@tailwindcss/postcss": "^4.0.0",
+    "@types/leaflet": "^1.9.16",
     "@types/node": "^22.10.0",
     "@types/react": "^19.0.0",
-    "eslint": "^10.15.0",
-    "prettier": "^3.10.1",
-    "typescript": "^5.7.0",
-    "typescript-eslint": "^8.72.2"
+    "@types/react-dom": "^19.0.0",
+    "eslint": "^9.18.0",
+    "eslint-config-next": "^15.1.6",
+    "prettier": "^3.4.2",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.7.3"
   }
 }

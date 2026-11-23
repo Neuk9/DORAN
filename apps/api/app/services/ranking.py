@@ -1,149 +1,95 @@
-from datetime import datetime
+import math
 
-from app.schemas import Candidate, ScoredCandidate, SearchCriteria
-from app.services.eligibility import evaluate
-
-WEIGHTS = {
-    "eligibility": 0.35,
-    "proximity": 0.20,
-    "time": 0.15,
-    "budget": 0.10,
-    "freshness": 0.10,
-    "urgency": 0.10,
-}
-
-STATE_SCORE = {"eligible": 1.0, "likely": 0.6, "needs_check": 0.3, "ineligible": 0.0}
+from app.models.schemas import (
+    EligibilityEvaluation,
+    ProgramOut,
+    ScoreBreakdown,
+    UserProfile,
+)
 
 
-def _freshness(updated_at: datetime, now: datetime) -> float:
-    if updated_at.tzinfo is None:
-        updated_at = updated_at.replace(tzinfo=now.tzinfo)
-    age_days = max(0.0, (now - updated_at).total_seconds() / 86400)
-    return 0.5 ** (age_days / 30)
-
-
-def _proximity(distance_km: float | None) -> float:
-    if distance_km is None:
-        return 0.5
-    return max(0.0, 1.0 - distance_km / 10.0)
-
-
-def _budget(fee: int, budget: int | None) -> float:
-    if budget is None or budget <= 0:
-        return 1.0 if fee == 0 else 0.6
-    if fee <= budget:
-        return 1.0
-    return max(0.0, 1.0 - (fee - budget) / budget)
-
-
-def _time_fit(c: Candidate, criteria: SearchCriteria) -> float:
-    if not c.days_of_week:
-        return 0.6
-    window = criteria.time_window or {}
-    days = window.get("days") if isinstance(window, dict) else None
-    if not days:
-        return 0.6
-    try:
-        wanted = {int(d) for d in days}
-    except (TypeError, ValueError):
-        return 0.6
-    return 1.0 if wanted & set(c.days_of_week) else 0.2
-
-
-def _urgency(c: Candidate, now: datetime) -> float:
-    if c.apply_end is None:
-        return 0.5
-    if c.apply_end.tzinfo is None:
-        c.apply_end = c.apply_end.replace(tzinfo=now.tzinfo)
-    days_left = (c.apply_end - now).total_seconds() / 86400
-    if days_left <= 0:
-        return 0.0
-    if days_left <= 3:
-        return 1.0
-    if days_left <= 14:
-        return 0.8
-    return 0.5
-
-
-def _score(c: Candidate, criteria: SearchCriteria, now: datetime) -> ScoredCandidate:
-    state = evaluate(c.eligibility, criteria)
-    reasons: list[str] = []
-    if state == "eligible":
-        reasons.append("자격 요건 충족")
-    elif state == "needs_check":
-        reasons.append("자격 확인 필요")
-
-    if c.distance_km is None:
-        reasons.append("거리 정보 없음")
-    elif c.distance_km <= 2:
-        reasons.append("가까운 거리")
-
-    if c.fee == 0:
-        reasons.append("무료")
-    elif criteria.budget_krw is not None and c.fee <= criteria.budget_krw:
-        reasons.append("예산 내")
-
-    urg = _urgency(c, now)
-    if urg >= 1.0:
-        reasons.append("마감 임박")
-
-    if _freshness(c.updated_at, now) > 0.7:
-        reasons.append("최근 갱신")
-
-    score = (
-        WEIGHTS["eligibility"] * STATE_SCORE[state]
-        + WEIGHTS["proximity"] * _proximity(c.distance_km)
-        + WEIGHTS["time"] * _time_fit(c, criteria)
-        + WEIGHTS["budget"] * _budget(c.fee, criteria.budget_krw)
-        + WEIGHTS["freshness"] * _freshness(c.updated_at, now)
-        + WEIGHTS["urgency"] * urg
+def haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    r = 6371.0
+    d_lat = math.radians(lat2 - lat1)
+    d_lng = math.radians(lng2 - lng1)
+    a = (
+        math.sin(d_lat / 2) ** 2
+        + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(d_lng / 2) ** 2
     )
-    return ScoredCandidate(
-        **c.model_dump(),
-        score=round(score, 4),
-        reasons=reasons,
-        eligibility_state=state,
+    return round(2 * r * math.asin(math.sqrt(a)), 2)
+
+
+def score_program(
+    program: ProgramOut,
+    profile: UserProfile,
+    evaluation: EligibilityEvaluation,
+    user_coords: tuple[float, float] | None = None,
+) -> ScoreBreakdown:
+    """다차원 스코어링 (자격 45% + 거리 20% + 비용 15% + 시간/관심도 20%)."""
+    # 1) 자격 점수 (0~100)
+    if evaluation.status == "eligible":
+        elig_score = 100.0
+    elif evaluation.status == "verify_needed":
+        elig_score = 78.0 + min(len(evaluation.matchedConditions) * 4.0, 14.0)
+    else:
+        elig_score = 15.0
+
+    # 2) 거리 점수 (0~100) — 좌표 없는 온라인/전국 프로그램은 중립(75점) 부여
+    if program.location is None:
+        dist_score = 75.0
+    elif user_coords is not None:
+        p_lng, p_lat = program.location.coordinates
+        dist_km = haversine_km(user_coords[0], user_coords[1], p_lat, p_lng)
+        program.distanceKm = dist_km
+        dist_score = max(15.0, round(100.0 - dist_km * 12.0, 1))
+    else:
+        if profile.dong and program.region.dong == profile.dong:
+            dist_score = 95.0
+        elif profile.sigungu and program.region.sigungu == profile.sigungu:
+            dist_score = 85.0
+        elif program.region.isNationwide:
+            dist_score = 75.0
+        else:
+            dist_score = 55.0
+
+    # 3) 비용 점수 (0~100)
+    if program.cost.type in ("free", "subsidy"):
+        cost_score = 100.0
+    elif profile.preferFree:
+        cost_score = 35.0
+    else:
+        cost_score = 70.0
+
+    # 4) 시간 및 관심 키워드/분야 연관성 (0~100)
+    rel_score = 45.0
+    if profile.categories:
+        if program.category in profile.categories:
+            rel_score += 25.0
+    else:
+        rel_score += 15.0
+
+    if profile.timePreferences:
+        slot_overlap = set(profile.timePreferences) & set(program.schedule.timeSlots)
+        if slot_overlap:
+            rel_score += 20.0
+    else:
+        rel_score += 10.0
+
+    if profile.keywords:
+        haystack = f"{program.title} {program.summary} {' '.join(program.tags)}".lower()
+        hits = sum(1 for kw in profile.keywords if kw.lower() in haystack)
+        rel_score += min(hits * 15.0, 35.0)
+
+    rel_score = min(100.0, rel_score)
+
+    total = round(
+        elig_score * 0.45 + dist_score * 0.20 + cost_score * 0.15 + rel_score * 0.20,
+        1,
     )
-
-
-def rank_candidates(
-    candidates: list[Candidate],
-    criteria: SearchCriteria,
-    *,
-    now: datetime,
-    limit: int = 5,
-    mmr_lambda: float = 0.7,
-) -> list[ScoredCandidate]:
-    scored: list[ScoredCandidate] = []
-    for c in candidates:
-        if c.apply_end is not None:
-            end = c.apply_end if c.apply_end.tzinfo else c.apply_end.replace(tzinfo=now.tzinfo)
-            if end <= now:
-                continue
-        if criteria.age_years is not None:
-            if c.target_age_min is not None and criteria.age_years < c.target_age_min:
-                continue
-            if c.target_age_max is not None and criteria.age_years > c.target_age_max:
-                continue
-        result = _score(c, criteria, now)
-        if result.eligibility_state == "ineligible":
-            continue
-        scored.append(result)
-
-    scored.sort(key=lambda x: x.score, reverse=True)
-
-    selected: list[ScoredCandidate] = []
-    pool = scored[:]
-    while pool and len(selected) < limit:
-        best = None
-        best_value = float("-inf")
-        for cand in pool:
-            redundancy = (
-                max((1.0 if cand.category == s.category else 0.0) for s in selected) if selected else 0.0
-            )
-            value = mmr_lambda * cand.score - (1 - mmr_lambda) * redundancy
-            if value > best_value:
-                best, best_value = cand, value
-        selected.append(best)
-        pool.remove(best)
-    return selected
+    return ScoreBreakdown(
+        total=total,
+        eligibility=round(elig_score, 1),
+        distance=round(dist_score, 1),
+        cost=round(cost_score, 1),
+        scheduleAndRelevance=round(rel_score, 1),
+    )

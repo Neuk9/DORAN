@@ -2,18 +2,18 @@ repos:
   - repo: local
     hooks:
       - id: ruff-check
-        name: ruff check (api, etl)
-        entry: bash -c 'cd apps/api && uv run ruff check --fix . && cd ../../packages/etl && uv run ruff check --fix .'
+        name: ruff check (api)
+        entry: bash -c 'cd apps/api && uv run ruff check --fix .'
         language: system
         pass_filenames: false
       - id: ruff-format
-        name: ruff format (api, etl)
-        entry: bash -c 'cd apps/api && uv run ruff format . && cd ../../packages/etl && uv run ruff format .'
+        name: ruff format (api)
+        entry: bash -c 'cd apps/api && uv run ruff format .'
         language: system
         pass_filenames: false
       - id: prettier
         name: prettier (web)
-        entry: bash -c 'cd apps/web && pnpm exec prettier --write "app/**/*.{ts,tsx,css}" "components/**/*.{ts,tsx}" "lib/**/*.ts" "e2e/**/*.ts"'
+        entry: bash -c 'cd apps/web && pnpm exec prettier --write "app/**/*.{ts,tsx,css}" "components/**/*.{ts,tsx}" "lib/**/*.ts"'
         language: system
         pass_filenames: false
       - id: tsc

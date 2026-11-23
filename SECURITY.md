@@ -32,4 +32,4 @@ GitHub Security 탭의 **Report a vulnerability**로 비공개 제보할 수 있
 - API 키는 서버 환경변수로만 보관하고 브라우저에 노출하지 않습니다.
 - 상담 원문은 저장하지 않고, LLM 전송 전 PII를 마스킹합니다.
 - 위기 키워드는 LLM 호출보다 먼저 처리합니다.
-- 외부 입력은 SQLAlchemy 파라미터 바인딩과 React 기본 이스케이프를 사용합니다.
+- 외부 입력은 Pydantic 스키마 검증, MongoDB 쿼리 파라미터화, React 기본 이스케이프를 사용합니다.

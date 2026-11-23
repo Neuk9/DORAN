@@ -1,20 +1,18 @@
 services:
-  db:
-    image: postgis/postgis:16-3.4
-    environment:
-      POSTGRES_DB: bigdata
-      POSTGRES_USER: bigdata
-      POSTGRES_PASSWORD: bigdata
+  mongo:
+    image: mongo:7
+    container_name: doran-mongo
     ports:
-      - "5433:5432"
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: doran
     volumes:
-      - dbdata:/var/lib/postgresql/data
-      - ./db/init:/docker-entrypoint-initdb.d:ro
+      - mongo_data:/data/db
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U bigdata -d bigdata"]
-      interval: 3s
-      timeout: 3s
-      retries: 20
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
 
 volumes:
-  dbdata:
+  mongo_data:

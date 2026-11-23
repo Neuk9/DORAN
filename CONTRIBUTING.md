@@ -4,16 +4,13 @@
 
 ```bash
 cp .env.example .env
-docker compose up -d db
-cd apps/api && uv sync && cd ../..
-cd packages/etl && uv sync && cd ../..
-cd apps/web && pnpm install && cd ../..
-bash scripts/seed_demo.sh
+make setup
+make seed
 ```
 
-- Python 3.12 / uv
-- Node 20+ / pnpm
-- Docker (Postgres+PostGIS)
+- Python 3.12 / [uv](https://docs.astral.sh/uv/)
+- Node 20+ (권장 22) / pnpm
+- MongoDB 7+ (로컬 Docker Compose 또는 MongoDB Atlas `MONGODB_URI`)
 
 ## 2. 브랜치
 
@@ -25,7 +22,7 @@ bash scripts/seed_demo.sh
 | `chore/<short-name>` | 설정·문서·CI |
 
 ```bash
-git switch -c feat/eligibility-parser
+git switch -c feat/eligibility-engine
 ```
 
 ## 3. 커밋 메시지
@@ -33,10 +30,10 @@ git switch -c feat/eligibility-parser
 Conventional Commits를 사용합니다.
 
 ```
-feat: 자격요건 파서 신뢰도 임계값 추가
-fix: 마감 당일 프로그램이 숨겨지는 문제 수정
-docs: 협업 가이드 추가
-chore: CI에 ruff 추가
+feat: 결정론적 자격요건 판정 엔진 구현
+fix: 마감 당일(KST 23:59:59) 프로그램이 숨겨지는 문제 수정
+docs: MongoDB 아키텍처 가이드 추가
+chore: CI MongoDB 서비스 컨테이너 전환
 ```
 
 - 한 커밋에 한 가지 변경
@@ -45,7 +42,7 @@ chore: CI에 ruff 추가
 ## 4. PR
 
 1. PR 템플릿을 채웁니다.
-2. `make lint`와 관련 테스트를 통과합니다.
+2. `make lint && make test-api && make build-web`를 통과합니다.
 3. 최소 1명의 리뷰 승인 후 squash merge합니다.
 4. `main`은 선형 히스토리를 유지합니다.
 
@@ -55,22 +52,24 @@ chore: CI에 ruff 추가
 - [ ] 개인정보가 저장·로그·LLM 전송되지 않는가
 - [ ] 추천 결과에 출처·기준일이 있는가
 - [ ] 마감일 경계(KST 23:59:59)와 좌표 없음 케이스가 유지되는가
+- [ ] MongoDB 쿼리가 로컬 Docker와 Atlas 양쪽에서 모두 동작하는가
 
 ## 5. 코드 규칙
 
-### Python
+### Python (`apps/api`)
 
 - `ruff check` + `ruff format`
-- 타입 힌트 사용, `from __future__` 불필요 (3.12)
+- 타입 힌트 사용, Pydantic v2 모델 기반 검증
 - FastAPI 응답은 `{"data": ..., "meta": {...}}` envelope 유지
-- LLM 호출은 `LLMProvider` 인터페이스를 통해서만
+- LLM 호출은 `LLMProvider` 인터페이스를 통해서만 수행
+- Atlas 전용 API에 종속되지 않도록 표준 MongoDB 인덱스·Aggregation 사용
 
-### TypeScript
+### TypeScript (`apps/web`)
 
 - `tsc --noEmit` 통과
 - ESLint + Prettier
-- 서버 컴포넌트에서 API 키 접근 금지
-- 접근성: 인터랙티브 요소에 접근 가능한 이름, 포커스 링 유지
+- 브라우저 코드에 API 키 노출 금지
+- 접근성: 인터랙티브 요소에 접근 가능한 이름, 포커스 링, 큰글씨 모드 대응 유지
 
 ## 6. 데이터·보안 원칙
 
@@ -86,9 +85,8 @@ chore: CI에 ruff 추가
 
 ```bash
 make test-api
-make test-etl
-make test-web
 make lint
+make build-web
 ```
 
 버그 수정은 **실패하는 테스트를 먼저** 작성합니다.
@@ -100,13 +98,13 @@ uv tool install pre-commit
 make hooks
 ```
 
-훅은 ruff(API·ETL), prettier(웹), tsc(웹)를 실행합니다.
+훅은 ruff(API), prettier(웹), tsc(웹)를 실행합니다.
 
-`main`은 보호됩니다: PR 필수, 리뷰 1명, CI(api/etl/web) 통과, 선형 히스토리, force push 금지.
+`main`은 보호됩니다: PR 필수, 리뷰 1명, CI(api/web) 통과, 선형 히스토리, force push 금지.
 보안 취약점은 [SECURITY.md](SECURITY.md)의 비공개 제보 절차를 따릅니다.
 
 ## 9. 릴리스
 
 - `main` merge 시 CI 통과 필수
-- 데모 시드는 `bash scripts/seed_demo.sh`
-- 배포는 `docker compose -f docker-compose.prod.yml up -d`
+- 데모 시드는 `make seed`
+- 배포는 `docker compose -f docker-compose.prod.yml up -d` (외부 MongoDB Atlas 사용 시 `MONGODB_URI` 설정)

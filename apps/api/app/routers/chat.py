@@ -1,179 +1,155 @@
-import json
-from collections.abc import AsyncIterator
+from datetime import UTC, datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends
-from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
-from sqlalchemy import or_, select
-from sqlalchemy.orm import Session
+from fastapi import APIRouter
 
-from app.deps import get_db
-from app.models import EligibilityRule, Offering, Resource
-from app.schemas import Candidate, SearchCriteria, SlotExtraction
-from app.services.crisis import detect_crisis
-from app.services.geo import distance_from
-from app.services.llm.base import LLMError, LLMProvider
-from app.services.llm.factory import get_llm
-from app.services.pii import mask_pii
-from app.services.ranking import rank_candidates
-from app.services.sessions import store
-from app.timeutil import now_kst
-
-router = APIRouter(prefix="/chat", tags=["chat"])
-
-SYSTEM = (
-    "너는 지역 복지·교육·문화 자원 상담 도우미다. 사용자의 상황에서 "
-    "지역, 나이, 가구유형, 돌봄 필요, 관심분야, 이동 가능시간, 예산, 긴급도를 추출한다. "
-    "확실하지 않은 값은 비워 두고 missing_slots에 넣는다. 제공된 JSON 스키마로만 답한다."
+from app.core.db import get_db
+from app.models.schemas import (
+    ApiResponse,
+    ChatRecommendRequest,
+    ChatRecommendResponse,
+    ExcludedProgram,
+    RecommendedProgram,
 )
+from app.services.eligibility import evaluate_eligibility
+from app.services.explain import build_explanation
+from app.services.gap import serialize_program
+from app.services.llm.provider import get_llm_provider
+from app.services.planner import (
+    build_action_plan_and_docs,
+    build_benefit_summary,
+    find_hidden_gems,
+)
+from app.services.ranking import score_program
+from app.services.safety import detect_crisis, mask_pii
+
+router = APIRouter(prefix="/api/chat", tags=["chat"])
+KST = timezone(timedelta(hours=9))
 
 
-class ChatRequest(BaseModel):
-    message: str
-    session_id: str | None = None
+@router.post("/recommend", response_model=ApiResponse)
+async def recommend_chat(payload: ChatRecommendRequest) -> ApiResponse:
+    # 1) 위기 키워드 최우선 검사 (LLM 미호출, 원문 미저장)
+    crisis = detect_crisis(payload.message)
+    if crisis is not None:
+        result = ChatRecommendResponse(
+            crisis=crisis,
+            summaryMessage=crisis.message,
+            provider="safety-rule",
+        )
+        return ApiResponse(data=result.model_dump(mode="json"), meta={"crisisDetected": True})
 
+    # 2) PII 마스킹 (상담 원문은 DB·로그에 절대 저장하지 않음)
+    masked_text = mask_pii(payload.message)
+    provider = get_llm_provider()
 
-async def extract_slots(
-    message: str, llm: LLMProvider, previous: SlotExtraction | None = None
-) -> SlotExtraction:
-    result = await llm.complete_json(system=SYSTEM, user=message, schema=SlotExtraction)
-    if not isinstance(result, SlotExtraction):
-        result = SlotExtraction()
-    return merge_slots(previous, result)
-
-
-def merge_slots(previous: SlotExtraction | None, new: SlotExtraction) -> SlotExtraction:
-    if previous is None:
-        merged = new.model_copy()
+    # 3) 의도·상황 구조화 (사용자 수정 overrideProfile 우선 적용)
+    if payload.overrideProfile is not None:
+        profile = payload.overrideProfile
     else:
-        merged = previous.model_copy()
-        for field_name in (
-            "region_adm_cd",
-            "age_years",
-            "budget_krw",
-            "max_travel_minutes",
-            "care_need",
-            "interests",
-            "household",
-            "transport",
-        ):
-            value = getattr(new, field_name)
-            if value:
-                setattr(merged, field_name, value)
-        if new.age_group != "unknown":
-            merged.age_group = new.age_group
-        if new.urgency != "normal":
-            merged.urgency = new.urgency
-    merged.missing_slots = [slot for slot in ("region_adm_cd", "age_years") if not getattr(merged, slot)]
-    return merged
+        profile = await provider.extract_profile(masked_text)
 
+    db = get_db()
 
-def _sse(event: str, data: dict) -> str:
-    return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+    user_coords: tuple[float, float] | None = None
+    if payload.lat is not None and payload.lng is not None:
+        user_coords = (payload.lat, payload.lng)
 
+    target_adm = profile.admCd or payload.admCd
+    if target_adm:
+        region_doc = await db["region_stats"].find_one({"admCd": target_adm})
+        if region_doc:
+            profile.admCd = region_doc["admCd"]
+            profile.sido = profile.sido or region_doc["sido"]
+            profile.sigungu = profile.sigungu or region_doc["sigungu"]
+            profile.dong = profile.dong or region_doc["dong"]
+            if user_coords is None and region_doc.get("center"):
+                coords = region_doc["center"]["coordinates"]
+                user_coords = (coords[1], coords[0])
+    elif profile.sigungu and user_coords is None:
+        region_doc = await db["region_stats"].find_one({"sigungu": profile.sigungu})
+        if region_doc and region_doc.get("center"):
+            coords = region_doc["center"]["coordinates"]
+            user_coords = (coords[1], coords[0])
 
-def _build_cards(db: Session, slots: SlotExtraction) -> list[dict]:
-    now = now_kst()
-    criteria = SearchCriteria(
-        adm_cd=slots.region_adm_cd,
-        age_years=slots.age_years,
-        household=slots.household,
-        care_need=slots.care_need,
-        interests=slots.interests,
-        budget_krw=slots.budget_krw,
-        urgency=slots.urgency,
-    )
-    stmt = (
-        select(Offering, Resource)
-        .join(Resource, Offering.resource_id == Resource.id)
-        .where(or_(Offering.apply_end.is_(None), Offering.apply_end >= now))
-        .order_by(Offering.title)
-        .limit(200)
-    )
-    if slots.region_adm_cd:
-        stmt = stmt.where(Resource.adm_cd == slots.region_adm_cd)
-    rows = db.execute(stmt).all()
-    candidates = []
-    for offering, resource in rows:
-        rule = db.get(EligibilityRule, (resource.id, "v1"))
-        candidates.append(
-            Candidate(
-                offering_id=offering.id,
-                resource_id=resource.id,
-                category=resource.category,
-                title=offering.title,
-                resource_name=resource.name,
-                apply_end=offering.apply_end,
-                fee=offering.fee,
-                distance_km=distance_from(None, None, resource.adm_cd, resource.lat, resource.lng),
-                target_age_min=offering.target_age_min,
-                target_age_max=offering.target_age_max,
-                updated_at=resource.updated_at,
-                eligibility=rule.rule_json if rule else None,
-                source=resource.source_dataset,
-                source_url=resource.source_url,
-                captured_at=resource.updated_at,
-                lat=resource.lat,
-                lng=resource.lng,
+    # 4) 전수 후보 조회 + 결정론 자격 판정 + 제외 사유 투명 기록 + 다차원 스코어링
+    cursor = db["programs"].find({})
+    now_kst = datetime.now(KST)
+    scored: list[RecommendedProgram] = []
+    excluded: list[ExcludedProgram] = []
+    total_evaluated = 0
+
+    async for doc in cursor:
+        total_evaluated += 1
+        prog = serialize_program(doc)
+        evaluation = evaluate_eligibility(prog, profile, now=now_kst)
+        if evaluation.status == "ineligible":
+            excluded.append(
+                ExcludedProgram(
+                    programId=prog.id,
+                    title=prog.title,
+                    provider=prog.provider,
+                    category=prog.category,
+                    reasons=evaluation.unmetConditions,
+                )
+            )
+            continue
+
+        scores = score_program(prog, profile, evaluation, user_coords=user_coords)
+        explanation = build_explanation(prog, profile, evaluation)
+        scored.append(
+            RecommendedProgram(
+                program=prog,
+                eligibility=evaluation,
+                scores=scores,
+                explanation=explanation,
             )
         )
-    ranked = rank_candidates(candidates, criteria, now=now, limit=5)
-    return [
-        {
-            **r.model_dump(mode="json"),
-            "source": r.source,
-            "captured_at": r.captured_at.isoformat() if r.captured_at else None,
-        }
-        for r in ranked
-    ]
 
+    scored.sort(key=lambda item: item.scores.total, reverse=True)
+    top_results = scored[: payload.limit]
 
-@router.post("")
-async def chat(payload: ChatRequest, db: Session = Depends(get_db)):
-    async def stream() -> AsyncIterator[str]:
-        crisis = detect_crisis(payload.message)
-        if crisis is not None:
-            yield _sse(
-                "crisis",
-                {
-                    "categories": crisis.categories,
-                    "hotlines": crisis.hotlines,
-                    "message": "지금 위험한 상황이라면 즉시 도움을 받아 주세요.",
-                },
-            )
-            yield _sse("done", {})
-            return
-        llm = get_llm()
-        session = store.get(payload.session_id)
-        previous = SlotExtraction(**session.slots) if session.slots else None
-        try:
-            slots = await extract_slots(mask_pii(payload.message).text, llm, previous)
-        except LLMError:
-            yield _sse(
-                "fallback",
-                {
-                    "message": "AI 응답이 지연되어 기본 안내로 진행합니다. "
-                    "가까운 주민센터나 129에 문의해 주세요.",
-                    "hotlines": ["129", "112", "119"],
-                },
-            )
-            yield _sse("done", {})
-            return
+    # 5) 예상 혜택 합산 · 숨은 혜택 발굴 · 3단계 실행 플랜 · 통합 구비서류 생성
+    benefit_summary = build_benefit_summary(top_results)
+    hidden_gems = find_hidden_gems(top_results, profile)
+    action_plan, consolidated_docs = build_action_plan_and_docs(top_results)
 
-        session.slots = slots.model_dump()
-        yield _sse("session", {"session_id": session.session_id})
-        yield _sse("slot_update", slots.model_dump(mode="json"))
-        try:
-            cards = _build_cards(db, slots)
-        except Exception:  # noqa: BLE001 - recommendation failure must not break chat
-            cards = []
-        yield _sse("cards", {"items": cards})
-        text = (
-            "조건에 맞는 자원을 찾았어요. 카드를 눌러 신청 방법을 확인하세요."
-            if cards
-            else "조건에 맞는 자원을 찾지 못했어요. 조건을 조금 넓혀 볼까요?"
-        )
-        yield _sse("message_delta", {"text": text})
-        yield _sse("done", {})
+    # 6) 비식별 탐색 수요 신호만 기록 (행정동 + 분야만 저장, 원문/PII 절대 미저장)
+    if profile.admCd and profile.categories:
+        now_utc = datetime.now(UTC)
+        signal_docs = [
+            {"admCd": profile.admCd, "category": cat, "createdAt": now_utc}
+            for cat in profile.categories
+        ]
+        await db["demand_signals"].insert_many(signal_docs)
 
-    return StreamingResponse(stream(), media_type="text/event-stream")
+    summary = (
+        f"전체 {total_evaluated}개 공공자원 중 자격·마감 기준으로 {len(excluded)}건을 제외하고, "
+        f"신청 가능성이 높은 {len(top_results)}건을 맞춤 정리했습니다."
+        if top_results
+        else "현재 조건에 바로 일치하는 자원을 찾지 못했습니다. 조건을 넓혀 다시 확인해 보세요."
+    )
+
+    response = ChatRecommendResponse(
+        crisis=None,
+        maskedPreview=masked_text,
+        profile=profile,
+        recommendations=top_results,
+        benefitSummary=benefit_summary,
+        hiddenGems=hidden_gems,
+        actionPlan=action_plan,
+        consolidatedDocs=consolidated_docs,
+        excludedPrograms=excluded[:8],
+        totalEvaluatedCount=total_evaluated,
+        totalExcludedCount=len(excluded),
+        summaryMessage=summary,
+        provider=provider.name,
+    )
+    return ApiResponse(
+        data=response.model_dump(mode="json"),
+        meta={
+            "count": len(top_results),
+            "evaluated": total_evaluated,
+            "excluded": len(excluded),
+            "provider": provider.name,
+        },
+    )

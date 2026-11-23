@@ -1,42 +1,49 @@
 services:
-  db:
-    image: postgis/postgis:16-3.4
+  mongo:
+    image: mongo:7
+    profiles: ["local-db"]
+    restart: unless-stopped
     environment:
-      POSTGRES_DB: bigdata
-      POSTGRES_USER: bigdata
-      POSTGRES_PASSWORD: bigdata
-    ports:
-      - "5433:5432"
+      MONGO_INITDB_DATABASE: ${MONGODB_DB:-doran}
     volumes:
-      - dbdata:/var/lib/postgresql/data
+      - mongo_prod_data:/data/db
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U bigdata -d bigdata"]
-      interval: 3s
-      timeout: 3s
-      retries: 20
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   api:
-    build: ./apps/api
-    environment:
-      DATABASE_URL: postgresql+psycopg://bigdata:bigdata@db:5432/bigdata
-      LLM_PROVIDER: ${LLM_PROVIDER:-mock}
-      LLM_API_KEY: ${LLM_API_KEY:-}
-    depends_on:
-      db:
-        condition: service_healthy
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    restart: unless-stopped
     ports:
       - "8000:8000"
-    command: sh -c "uv run alembic upgrade head && uv run uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    environment:
+      MONGODB_URI: ${MONGODB_URI:-mongodb://mongo:27017}
+      MONGODB_DB: ${MONGODB_DB:-doran}
+      LLM_PROVIDER: ${LLM_PROVIDER:-mock}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
+      KAKAO_API_KEY: ${KAKAO_API_KEY:-}
+      DATA_GO_KR_KEY: ${DATA_GO_KR_KEY:-}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
 
   web:
-    build: ./apps/web
-    environment:
-      API_BASE_URL: http://api:8000
-      NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
+    restart: unless-stopped
     depends_on:
       - api
     ports:
       - "3000:3000"
+    environment:
+      API_BASE_URL: http://api:8000
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
 
 volumes:
-  dbdata:
+  mongo_prod_data:
