@@ -8,7 +8,6 @@ import {
   ArrowRight,
   BarChart3,
   Bookmark,
-  Building2,
   Check,
   Clock,
   Crosshair,
@@ -18,7 +17,6 @@ import {
   Mic,
   MicOff,
   PhoneCall,
-  Printer,
   RotateCcw,
   Scale,
   Search,
@@ -121,8 +119,6 @@ interface SpeechRecognitionLike {
 
 export default function HomeAISearchPage() {
   const {
-    roleMode,
-    setRoleMode,
     regions,
     selectedAdmCd,
     setSelectedAdmCd,
@@ -419,45 +415,6 @@ export default function HomeAISearchPage() {
 
   return (
     <div className="space-y-9">
-      {/* 주민센터 상담 보조 모드 전용 업무 배너 */}
-      {roleMode === "officer" ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#191f28] bg-[#191f28] px-5 py-3.5 text-white shadow-sm">
-          <div className="flex items-center gap-3">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10">
-              <Building2 className="h-5 w-5 text-teal-300" />
-            </span>
-            <div>
-              <p className="text-sm font-extrabold">
-                행정복지센터(주민센터) 민원 상담 보조 모드 활성 중
-              </p>
-              <p className="text-xs text-slate-300">
-                민원인 상황을 입력하면 통합 구비서류가 정리된 1장 원스톱 안내지를 즉시 인쇄·전달할 수
-                있으며, 비식별 수요가 지역 격차 지표에 자동 누적됩니다.
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {aiResult && !aiResult.crisis && recommendations.length > 0 ? (
-              <button
-                type="button"
-                onClick={() => setGuideOpen(true)}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-teal-500 px-4 py-2 text-xs font-extrabold text-[#191f28] hover:bg-teal-400"
-              >
-                <Printer className="h-4 w-4" />
-                <span>1장 민원 안내지 출력</span>
-              </button>
-            ) : null}
-            <button
-              type="button"
-              onClick={() => setRoleMode("citizen")}
-              className="rounded-xl border border-white/20 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-white/10"
-            >
-              주민 모드로 전환
-            </button>
-          </div>
-        </div>
-      ) : null}
-
       {/* ============================================================
           1. AI 검색 히어로 컴포저 (주 기능)
          ============================================================ */}

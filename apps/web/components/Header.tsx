@@ -2,14 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, Bookmark, Building2, Compass, LocateFixed, MapPin, Search, Type, User } from "lucide-react";
+import { BarChart3, Bookmark, Compass, LocateFixed, MapPin, Search, Type } from "lucide-react";
 import { useApp } from "./AppContext";
 
 export function Header() {
   const pathname = usePathname();
   const {
-    roleMode,
-    setRoleMode,
     regions,
     selectedAdmCd,
     setSelectedAdmCd,
@@ -68,38 +66,6 @@ export function Header() {
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
-          {/* 주민 / 주민센터 상담 모드 스위치 */}
-          <div
-            role="group"
-            aria-label="이용 모드 전환"
-            className="hidden items-center rounded-xl border border-[#e5e8eb] bg-[#f6f7f9] p-0.5 lg:inline-flex"
-          >
-            <button
-              type="button"
-              onClick={() => setRoleMode("citizen")}
-              className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-bold transition-colors ${
-                roleMode === "citizen"
-                  ? "bg-white text-[#191f28] shadow-2xs"
-                  : "text-[#6b7684] hover:text-[#191f28]"
-              }`}
-            >
-              <User className="h-3.5 w-3.5" />
-              <span>주민</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setRoleMode("officer")}
-              className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-bold transition-colors ${
-                roleMode === "officer"
-                  ? "bg-[#191f28] text-white shadow-2xs"
-                  : "text-[#6b7684] hover:text-[#191f28]"
-              }`}
-            >
-              <Building2 className="h-3.5 w-3.5" />
-              <span>주민센터 상담</span>
-            </button>
-          </div>
-
           <div className="flex items-center gap-1 rounded-xl border border-[#e5e8eb] bg-[#f9fafb] px-2.5 py-1.5">
             <MapPin className="h-4 w-4 shrink-0 text-[#0d6e6e]" aria-hidden="true" />
             <label htmlFor="header-region-select" className="sr-only">

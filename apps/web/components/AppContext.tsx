@@ -24,11 +24,7 @@ interface ToastState {
   hrefLabel?: string;
 }
 
-export type RoleMode = "citizen" | "officer";
-
 interface AppContextValue {
-  roleMode: RoleMode;
-  setRoleMode: (mode: RoleMode) => void;
   regions: RegionStat[];
   selectedAdmCd: string;
   setSelectedAdmCd: (admCd: string) => void;
@@ -73,7 +69,6 @@ function getOrCreateSessionId(): string {
 }
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const [roleMode, setRoleModeState] = useState<RoleMode>("citizen");
   const [regions, setRegions] = useState<RegionStat[]>([]);
   const [selectedAdmCd, setSelectedAdmCdState] = useState<string>(DEFAULT_ADM_CD);
   const [userCoords, setUserCoords] = useState<GpsLocation | null>(null);
@@ -126,19 +121,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       .then((res) => setSavedItems(res.items))
       .catch(() => setSavedItems([]));
   }, []);
-
-  const setRoleMode = useCallback(
-    (mode: RoleMode) => {
-      setRoleModeState(mode);
-      showToast({
-        message:
-          mode === "officer"
-            ? "주민센터 상담 보조 모드로 전환했어요. 1장 안내지 출력이 가능합니다."
-            : "일반 주민 모드로 전환했어요.",
-      });
-    },
-    [showToast],
-  );
 
   const setSelectedAdmCd = useCallback((admCd: string) => {
     setSelectedAdmCdState(admCd);
@@ -290,8 +272,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   return (
     <AppContext.Provider
       value={{
-        roleMode,
-        setRoleMode,
         regions,
         selectedAdmCd,
         setSelectedAdmCd,
