@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Building2, ChevronDown, ChevronUp, Lightbulb, RefreshCw, Users } from "lucide-react";
+import { Building2, ChevronDown, ChevronUp, Lightbulb, MapPinPlus, RefreshCw, Search, Users } from "lucide-react";
 import { useApp } from "@/components/AppContext";
 import { FacilityRecommendations } from "@/components/FacilityRecommendations";
 import { GapPolicySimulator, type SimulatorCounts } from "@/components/GapPolicySimulator";
@@ -24,10 +24,19 @@ const InteractiveAIMap = dynamic(() => import("@/components/InteractiveAIMap"), 
 export default function RegionReportPage() {
   const params = useParams<{ admCd: string }>();
   const router = useRouter();
-  const { regions, setSelectedAdmCd, showToast } = useApp();
+  const {
+    regions,
+    refreshRegions,
+    discoverAndSelectRegion,
+    discoveringRegion,
+    setSelectedAdmCd,
+    showToast,
+  } = useApp();
   const [report, setReport] = useState<RegionReport | null>(null);
   const [simCounts, setSimCounts] = useState<SimulatorCounts>({ welfare: 0, education: 0, culture: 0 });
   const [formulaOpen, setFormulaOpen] = useState(false);
+  const [discoverOpen, setDiscoverOpen] = useState(false);
+  const [discoverQuery, setDiscoverQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -58,7 +67,8 @@ export default function RegionReportPage() {
     setSyncing(true);
     try {
       await triggerPublicSync();
-      showToast({ message: "공공데이터포털 4종 API 및 격차 지수를 최신 실데이터로 갱신했어요." });
+      await refreshRegions();
+      showToast({ message: "공공데이터포털 9종 API 및 격차 지수를 최신 실데이터로 갱신했어요." });
       await loadReport(admCd);
     } catch (err) {
       showToast({
@@ -66,6 +76,17 @@ export default function RegionReportPage() {
       });
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const handleDiscoverSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!discoverQuery.trim() || discoveringRegion) return;
+    const nextAdmCd = await discoverAndSelectRegion(discoverQuery);
+    if (nextAdmCd) {
+      setDiscoverQuery("");
+      setDiscoverOpen(false);
+      router.push(`/report/${nextAdmCd}`);
     }
   };
 
@@ -137,9 +158,22 @@ export default function RegionReportPage() {
 
           <button
             type="button"
+            onClick={() => setDiscoverOpen((prev) => !prev)}
+            className={`inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-xs font-bold transition-colors ${
+              discoverOpen
+                ? "border-brand bg-brand-tint text-brand"
+                : "border-line bg-surface text-muted hover:border-line-strong hover:bg-fill-soft hover:text-ink"
+            }`}
+          >
+            <MapPinPlus className="h-3.5 w-3.5" />
+            <span>전국 지역 추가</span>
+          </button>
+
+          <button
+            type="button"
             onClick={handleSyncPublicData}
             disabled={syncing}
-            title="공공데이터포털 4종 API 최신화"
+            title="공공데이터포털 9종 API 최신화"
             className="inline-flex items-center gap-1.5 rounded-xl border border-line bg-surface px-3.5 py-2 text-xs font-bold text-muted transition-colors hover:border-line-strong hover:bg-fill-soft hover:text-ink disabled:opacity-60"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${syncing ? "animate-spin" : ""}`} />
@@ -147,6 +181,32 @@ export default function RegionReportPage() {
           </button>
         </div>
       </header>
+
+      {/* 전국 자치구 온디맨드 실시간 추가 검색바 */}
+      {discoverOpen ? (
+        <form
+          onSubmit={handleDiscoverSubmit}
+          className="flex flex-wrap items-center gap-2.5 rounded-2xl border border-brand-line bg-brand-tint/60 p-4"
+        >
+          <div className="relative min-w-[240px] flex-1">
+            <Search className="pointer-events-none absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-subtle" />
+            <input
+              type="text"
+              value={discoverQuery}
+              onChange={(e) => setDiscoverQuery(e.target.value)}
+              placeholder="전국 시·군·구 또는 동 입력 (예: 관악구, 강남구, 마포구, 부산 해운대구)"
+              className="w-full rounded-xl border border-line-strong bg-surface py-2.5 pr-4 pl-10 text-sm font-medium text-ink placeholder-faint focus:border-brand focus:outline-none"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={discoveringRegion || !discoverQuery.trim()}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-ink px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand disabled:opacity-50"
+          >
+            {discoveringRegion ? "공공 API 수집 중…" : "실데이터 불러오기"}
+          </button>
+        </form>
+      ) : null}
 
       {/* KPI 카드 */}
       <section className="grid gap-4 sm:grid-cols-3">
