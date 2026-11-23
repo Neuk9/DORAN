@@ -62,6 +62,16 @@ export function ScrollSnapToSection({ targetId, enabled }: ScrollSnapToSectionPr
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (!["ArrowDown", "PageDown", " ", "Spacebar"].includes(event.key)) return;
+      if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
+
+      // 입력창·선택창·버튼 등에 포커스가 있을 때는 페이지 스냅을 건드리지 않는다.
+      const isFormTarget = (node: EventTarget | null) => {
+        if (!(node instanceof HTMLElement)) return false;
+        if (node.isContentEditable) return true;
+        return ["INPUT", "TEXTAREA", "SELECT", "BUTTON", "A"].includes(node.tagName);
+      };
+      if (isFormTarget(event.target) || isFormTarget(document.activeElement)) return;
+
       snapDown();
     };
 
