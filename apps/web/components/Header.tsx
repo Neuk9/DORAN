@@ -2,14 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, Bookmark, Building2, Compass, LocateFixed, MapPin, Search, Type, User } from "lucide-react";
+import { BarChart3, Bookmark, Compass, LocateFixed, MapPin, Search, Type } from "lucide-react";
 import { useApp } from "./AppContext";
 
 export function Header() {
   const pathname = usePathname();
   const {
-    roleMode,
-    setRoleMode,
     regions,
     selectedAdmCd,
     setSelectedAdmCd,
@@ -29,79 +27,56 @@ export function Header() {
   ];
 
   return (
-    <header className="sticky top-0 z-40 h-[68px] border-b border-[#e5e8eb] bg-white/95 backdrop-blur">
-      <div className="mx-auto flex h-full max-w-[1400px] items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center gap-7">
-          <Link href="/" className="flex shrink-0 items-center">
-            <span className="text-[22px] font-black tracking-tight text-[#111827]">도란도란</span>
-          </Link>
+    <header className="sticky top-0 z-40 border-b border-line bg-canvas/85 backdrop-blur-md">
+      <div className="mx-auto flex h-16 max-w-[1360px] items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
+        {/* 좌측: 브랜드 워드마크 (절제된 2-dot 대화 심볼) */}
+        <Link href="/" aria-label="도란도란 홈" className="flex shrink-0 items-center gap-2.5">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle cx="9.5" cy="12" r="6.5" fill="#0f5c57" />
+            <circle cx="16.5" cy="12" r="4.5" fill="#c85a32" fillOpacity="0.88" />
+          </svg>
+          <span className="text-[19px] font-extrabold tracking-[-0.03em] text-ink">도란도란</span>
+        </Link>
 
-          <nav aria-label="주요 메뉴" className="hidden items-center gap-1.5 md:flex">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const active =
-                item.href === "/" ? pathname === "/" : pathname.startsWith(`/${item.href.split("/")[1]}`);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-xl px-3.5 py-2 text-[15px] font-semibold transition-colors ${
-                    active
-                      ? "bg-[#f2f4f6] text-[#191f28]"
-                      : "text-[#4e5968] hover:bg-[#f6f7f9] hover:text-[#191f28]"
-                  }`}
-                >
-                  <Icon
-                    className={`h-4 w-4 shrink-0 ${active ? "text-[#0d6e6e]" : "text-[#8b95a1]"}`}
-                    aria-hidden="true"
-                  />
-                  <span>{item.label}</span>
-                  {item.badge ? (
-                    <span className="rounded-full bg-[#0d6e6e] px-2 py-0.5 text-xs font-bold text-white">
-                      {item.badge}
-                    </span>
-                  ) : null}
-                </Link>
-              );
-            })}
-          </nav>
-        </div>
+        {/* 중앙: 세그먼트 필 네비게이션 */}
+        <nav
+          aria-label="주요 메뉴"
+          className="hidden items-center gap-0.5 rounded-full border border-line bg-fill/80 p-1 md:flex"
+        >
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const active =
+              item.href === "/" ? pathname === "/" : pathname.startsWith(`/${item.href.split("/")[1]}`);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                aria-current={active ? "page" : undefined}
+                className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-1.5 text-sm font-semibold transition-all ${
+                  active
+                    ? "bg-surface text-ink font-bold shadow-card"
+                    : "text-muted hover:text-ink"
+                }`}
+              >
+                <Icon
+                  className={`h-3.5 w-3.5 shrink-0 ${active ? "text-brand" : "text-subtle"}`}
+                  aria-hidden="true"
+                />
+                <span>{item.label}</span>
+                {item.badge ? (
+                  <span className="rounded-full bg-brand-soft px-1.5 py-0.5 text-[11px] font-bold leading-none text-brand">
+                    {item.badge}
+                  </span>
+                ) : null}
+              </Link>
+            );
+          })}
+        </nav>
 
+        {/* 우측: 동네 선택 + 큰글씨 */}
         <div className="flex shrink-0 items-center gap-2">
-          {/* 주민 / 주민센터 상담 모드 스위치 */}
-          <div
-            role="group"
-            aria-label="이용 모드 전환"
-            className="hidden items-center rounded-xl border border-[#e5e8eb] bg-[#f6f7f9] p-0.5 lg:inline-flex"
-          >
-            <button
-              type="button"
-              onClick={() => setRoleMode("citizen")}
-              className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-bold transition-colors ${
-                roleMode === "citizen"
-                  ? "bg-white text-[#191f28] shadow-2xs"
-                  : "text-[#6b7684] hover:text-[#191f28]"
-              }`}
-            >
-              <User className="h-3.5 w-3.5" />
-              <span>주민</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setRoleMode("officer")}
-              className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-bold transition-colors ${
-                roleMode === "officer"
-                  ? "bg-[#191f28] text-white shadow-2xs"
-                  : "text-[#6b7684] hover:text-[#191f28]"
-              }`}
-            >
-              <Building2 className="h-3.5 w-3.5" />
-              <span>주민센터 상담</span>
-            </button>
-          </div>
-
-          <div className="flex items-center gap-1 rounded-xl border border-[#e5e8eb] bg-[#f9fafb] px-2.5 py-1.5">
-            <MapPin className="h-4 w-4 shrink-0 text-[#0d6e6e]" aria-hidden="true" />
+          <div className="flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1.5">
+            <MapPin className="h-3.5 w-3.5 shrink-0 text-brand" aria-hidden="true" />
             <label htmlFor="header-region-select" className="sr-only">
               우리 동네 선택
             </label>
@@ -109,7 +84,7 @@ export function Header() {
               id="header-region-select"
               value={selectedAdmCd}
               onChange={(e) => setSelectedAdmCd(e.target.value)}
-              className="max-w-[130px] truncate bg-transparent text-sm font-semibold text-[#191f28] focus:outline-none sm:max-w-none"
+              className="max-w-[118px] truncate bg-transparent text-sm font-semibold text-ink focus:outline-none lg:max-w-none"
             >
               {regions.map((r) => (
                 <option key={r.admCd} value={r.admCd}>
@@ -123,13 +98,13 @@ export function Header() {
               disabled={locating}
               title="내 현재 GPS 위치로 맞추기"
               aria-label="내 현재 위치 찾기"
-              className={`ml-1 rounded-lg p-1 transition-colors ${
+              className={`ml-0.5 rounded-full p-1 transition-colors ${
                 userCoords?.source === "gps"
-                  ? "bg-[#0d6e6e] text-white"
-                  : "text-[#4e5968] hover:bg-[#e5e8eb]"
+                  ? "bg-brand-soft text-brand"
+                  : "text-subtle hover:bg-fill hover:text-ink"
               }`}
             >
-              <LocateFixed className={`h-4 w-4 ${locating ? "animate-spin" : ""}`} />
+              <LocateFixed className={`h-3.5 w-3.5 ${locating ? "animate-spin" : ""}`} />
             </button>
           </div>
 
@@ -137,13 +112,13 @@ export function Header() {
             type="button"
             onClick={toggleLargeText}
             aria-pressed={largeText}
-            className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl border px-3 py-2 text-sm font-semibold transition-colors ${
+            className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1.5 text-sm font-semibold transition-colors ${
               largeText
-                ? "border-[#0d6e6e] bg-[#0d6e6e] text-white"
-                : "border-[#e5e8eb] bg-white text-[#4e5968] hover:bg-[#f6f7f9]"
+                ? "border-pine bg-pine text-white"
+                : "border-line bg-surface text-muted hover:bg-fill-soft hover:text-ink"
             }`}
           >
-            <Type className="h-4 w-4 shrink-0" aria-hidden="true" />
+            <Type className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             <span className="hidden sm:inline">{largeText ? "큰글씨 ON" : "큰글씨"}</span>
           </button>
         </div>
